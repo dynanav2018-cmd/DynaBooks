@@ -10,7 +10,7 @@ from python_accounting.reports import (
     BalanceSheet,
     AgingSchedule,
 )
-from python_accounting.transactions import ClientInvoice
+from python_accounting.transactions import ClientInvoice, SupplierBill
 
 from backend.models.contact import Contact
 from backend.models.transaction_contact import TransactionContact
@@ -53,6 +53,37 @@ def invoice_pdf(invoice_id):
         mimetype="application/pdf",
         headers={
             "Content-Disposition": f"inline; filename=invoice-{invoice_data.get('transaction_no', invoice_id)}.pdf"
+        },
+    )
+
+
+@bp.route("/bills/<int:bill_id>/pdf", methods=["GET"])
+def bill_pdf(bill_id):
+    bill = g.session.get(SupplierBill, bill_id)
+    if not bill:
+        return jsonify(error="Bill not found"), 404
+
+    bill_data = serialize_transaction(bill)
+    company_data = serialize_entity(g.session.entity)
+
+    # Look up linked contact
+    contact_data = None
+    tc = (
+        g.session.query(TransactionContact)
+        .filter(TransactionContact.transaction_id == bill_id)
+        .first()
+    )
+    if tc:
+        contact = g.session.get(Contact, tc.contact_id)
+        if contact:
+            contact_data = serialize_contact(contact)
+
+    pdf_bytes = render_invoice_pdf(bill_data, company_data, contact_data)
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=bill-{bill_data.get('transaction_no', bill_id)}.pdf"
         },
     )
 

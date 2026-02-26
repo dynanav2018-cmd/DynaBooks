@@ -1,0 +1,278 @@
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useToast } from '../../hooks/useToast'
+import { useApi } from '../../hooks/useApi'
+import { createBill, fetchBill, updateBill } from '../../api/bills'
+import { fetchContacts } from '../../api/contacts'
+import { fetchAccounts } from '../../api/accounts'
+import { fetchTaxes } from '../../api/taxes'
+import { todayISO } from '../../utils/format'
+import PageHeader from '../../components/shared/PageHeader'
+import Button from '../../components/shared/Button'
+import FormField, { Input, Select } from '../../components/shared/FormField'
+import LoadingSpinner from '../../components/shared/LoadingSpinner'
+
+const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '' }
+
+export default function BillForm() {
+  const { id } = useParams()
+  const isEdit = Boolean(id)
+  const navigate = useNavigate()
+  const toast = useToast()
+
+  const { data: contacts } = useApi(() => fetchContacts('supplier'), [])
+  const { data: accounts } = useApi(() => fetchAccounts('Operating Expense'), [])
+  const { data: taxes } = useApi(fetchTaxes, [])
+
+  const [form, setForm] = useState({
+    contact_id: '',
+    transaction_date: todayISO(),
+    narration: 'Supplier Bill',
+    line_items: [{ ...emptyLine }],
+  })
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(!isEdit)
+
+  useEffect(() => {
+    if (isEdit) {
+      fetchBill(id).then((bill) => {
+        setForm({
+          contact_id: '',
+          transaction_date: bill.transaction_date?.split('T')[0] || todayISO(),
+          narration: bill.narration || '',
+          line_items: bill.line_items.map((li) => ({
+            narration: li.narration || '',
+            account_id: li.account_id || '',
+            quantity: li.quantity || 1,
+            amount: li.amount || '',
+            tax_id: li.tax_id || '',
+          })),
+        })
+        setLoaded(true)
+      }).catch((err) => {
+        toast.error(err.message)
+        navigate('/bills')
+      })
+    }
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateLine = (index, field, value) => {
+    setForm((prev) => {
+      const lines = [...prev.line_items]
+      lines[index] = { ...lines[index], [field]: value }
+      return { ...prev, line_items: lines }
+    })
+  }
+
+  const addLine = () => {
+    setForm((prev) => ({ ...prev, line_items: [...prev.line_items, { ...emptyLine }] }))
+  }
+
+  const removeLine = (index) => {
+    if (form.line_items.length <= 1) return
+    setForm((prev) => ({
+      ...prev,
+      line_items: prev.line_items.filter((_, i) => i !== index),
+    }))
+  }
+
+  const totals = useMemo(() => {
+    let subtotal = 0
+    let taxTotal = 0
+    const taxRates = {}
+    taxes?.forEach((t) => { taxRates[t.id] = t.rate })
+
+    form.line_items.forEach((li) => {
+      const lineAmount = (parseFloat(li.amount) || 0) * (parseFloat(li.quantity) || 0)
+      subtotal += lineAmount
+      if (li.tax_id && taxRates[li.tax_id]) {
+        taxTotal += lineAmount * taxRates[li.tax_id]
+      }
+    })
+
+    return { subtotal, taxTotal, total: subtotal + taxTotal }
+  }, [form.line_items, taxes])
+
+  const handleSubmit = async (post = false) => {
+    setSaving(true)
+    try {
+      const payload = {
+        narration: form.narration,
+        transaction_date: form.transaction_date,
+        contact_id: form.contact_id || undefined,
+        post,
+        line_items: form.line_items.map((li) => ({
+          narration: li.narration,
+          account_id: parseInt(li.account_id),
+          quantity: parseFloat(li.quantity) || 1,
+          amount: parseFloat(li.amount) || 0,
+          tax_id: li.tax_id ? parseInt(li.tax_id) : undefined,
+        })),
+      }
+
+      if (isEdit) {
+        await updateBill(id, { narration: form.narration })
+        toast.success('Bill updated')
+      } else {
+        const result = await createBill(payload)
+        toast.success(post ? 'Bill created & posted' : 'Bill saved as draft')
+        navigate(`/bills/${result.id}`)
+        return
+      }
+      navigate('/bills')
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!loaded) return <LoadingSpinner />
+
+  const fmtCurrency = (v) => `$${v.toFixed(2)}`
+
+  return (
+    <div>
+      <PageHeader title={isEdit ? 'Edit Bill' : 'New Bill'}>
+        <Button variant="secondary" onClick={() => navigate('/bills')}>Cancel</Button>
+      </PageHeader>
+
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <FormField label="Supplier">
+            <Select value={form.contact_id} onChange={(e) => setForm({ ...form, contact_id: e.target.value })}>
+              <option value="">Select supplier...</option>
+              {contacts?.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Date" required>
+            <Input
+              type="date"
+              value={form.transaction_date}
+              onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
+              required
+            />
+          </FormField>
+          <FormField label="Description">
+            <Input
+              value={form.narration}
+              onChange={(e) => setForm({ ...form, narration: e.target.value })}
+            />
+          </FormField>
+        </div>
+
+        {!isEdit && (
+          <>
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Line Items</h3>
+            <div className="space-y-3">
+              {form.line_items.map((li, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-3">
+                    {i === 0 && <label className="block text-xs text-gray-500 mb-1">Description</label>}
+                    <Input
+                      value={li.narration}
+                      onChange={(e) => updateLine(i, 'narration', e.target.value)}
+                      placeholder="Description"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    {i === 0 && <label className="block text-xs text-gray-500 mb-1">Account</label>}
+                    <Select value={li.account_id} onChange={(e) => updateLine(i, 'account_id', e.target.value)} required>
+                      <option value="">Account...</option>
+                      {accounts?.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="col-span-1">
+                    {i === 0 && <label className="block text-xs text-gray-500 mb-1">Qty</label>}
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={li.quantity}
+                      onChange={(e) => updateLine(i, 'quantity', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-xs text-gray-500 mb-1">Price</label>}
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={li.amount}
+                      onChange={(e) => updateLine(i, 'amount', e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    {i === 0 && <label className="block text-xs text-gray-500 mb-1">Tax</label>}
+                    <Select value={li.tax_id} onChange={(e) => updateLine(i, 'tax_id', e.target.value)}>
+                      <option value="">No tax</option>
+                      {taxes?.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({(t.rate * 100).toFixed(0)}%)</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="col-span-1">
+                    <button
+                      type="button"
+                      onClick={() => removeLine(i)}
+                      className="p-2 text-red-400 hover:text-red-600 disabled:opacity-30"
+                      disabled={form.line_items.length <= 1}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addLine}
+              className="mt-3 text-sm text-accent hover:text-accent-dark font-medium"
+            >
+              + Add Line Item
+            </button>
+
+            <div className="mt-6 flex justify-end">
+              <div className="w-64 space-y-1 text-sm">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>{fmtCurrency(totals.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Tax</span>
+                  <span>{fmtCurrency(totals.taxTotal)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-2">
+                  <span>Total</span>
+                  <span>{fmtCurrency(totals.total)}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-200">
+          <Button variant="secondary" onClick={() => navigate('/bills')} disabled={saving}>
+            Cancel
+          </Button>
+          <Button variant="secondary" onClick={() => handleSubmit(false)} disabled={saving}>
+            {isEdit ? 'Update' : 'Save Draft'}
+          </Button>
+          {!isEdit && (
+            <Button onClick={() => handleSubmit(true)} disabled={saving}>
+              Save & Post
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

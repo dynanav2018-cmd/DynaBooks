@@ -3,11 +3,13 @@ import { useLocation } from 'react-router-dom'
 const titles = {
   '/dashboard': 'Dashboard',
   '/invoices': 'Invoices',
+  '/bills': 'Bills',
   '/contacts': 'Contacts',
   '/accounts': 'Chart of Accounts',
   '/reports': 'Reports',
   '/settings': 'Settings',
   '/journals': 'Journal Entries',
+  '/banking': 'Banking',
 }
 
 export default function TopBar() {
