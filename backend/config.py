@@ -20,6 +20,9 @@ from python_accounting.models import Base  # noqa: E402
 def init_db():
     """Create all database tables (python-accounting + custom)."""
     from backend.models import CustomBase
+    from backend.models.contact import Contact  # noqa: F401
+    from backend.models.product import Product  # noqa: F401
+    from backend.models.transaction_contact import TransactionContact  # noqa: F401
 
     Base.metadata.create_all(engine)
     CustomBase.metadata.create_all(engine)

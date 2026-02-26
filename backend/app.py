@@ -1,6 +1,8 @@
 """Flask application factory for DynaBooks."""
 
-from flask import Flask, g, jsonify
+import os
+
+from flask import Flask, g, jsonify, send_from_directory
 
 from backend.config import make_session
 
@@ -58,6 +60,7 @@ def create_app(session_factory=None):
     from backend.routes.assignments import bp as assignments_bp
     from backend.routes.reports import bp as reports_bp
     from backend.routes.dashboard import bp as dashboard_bp
+    from backend.routes.pdf import bp as pdf_bp
 
     app.register_blueprint(company_bp)
     app.register_blueprint(accounts_bp)
@@ -71,5 +74,20 @@ def create_app(session_factory=None):
     app.register_blueprint(assignments_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(pdf_bp)
+
+    # ── SPA static file serving ──────────────────────────────────────
+    frontend_dist = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"
+    )
+
+    if os.path.isdir(frontend_dist):
+        @app.route("/", defaults={"path": ""})
+        @app.route("/<path:path>")
+        def serve_spa(path):
+            file_path = os.path.join(frontend_dist, path)
+            if path and os.path.isfile(file_path):
+                return send_from_directory(frontend_dist, path)
+            return send_from_directory(frontend_dist, "index.html")
 
     return app

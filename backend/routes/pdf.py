@@ -1,0 +1,139 @@
+"""PDF generation routes."""
+
+from datetime import datetime
+
+from flask import Blueprint, Response, g, jsonify, request
+
+from python_accounting.models import Account
+from python_accounting.reports import (
+    IncomeStatement,
+    BalanceSheet,
+    AgingSchedule,
+)
+from python_accounting.transactions import ClientInvoice
+
+from backend.models.contact import Contact
+from backend.models.transaction_contact import TransactionContact
+from backend.serializers import (
+    serialize_transaction,
+    serialize_entity,
+    serialize_contact,
+    serialize_report_section,
+    _dec,
+)
+from backend.services.pdf_service import render_invoice_pdf, render_report_pdf
+
+bp = Blueprint("pdf", __name__, url_prefix="/api")
+
+
+@bp.route("/invoices/<int:invoice_id>/pdf", methods=["GET"])
+def invoice_pdf(invoice_id):
+    invoice = g.session.get(ClientInvoice, invoice_id)
+    if not invoice:
+        return jsonify(error="Invoice not found"), 404
+
+    invoice_data = serialize_transaction(invoice)
+    company_data = serialize_entity(g.session.entity)
+
+    # Look up linked contact
+    contact_data = None
+    tc = (
+        g.session.query(TransactionContact)
+        .filter(TransactionContact.transaction_id == invoice_id)
+        .first()
+    )
+    if tc:
+        contact = g.session.get(Contact, tc.contact_id)
+        if contact:
+            contact_data = serialize_contact(contact)
+
+    pdf_bytes = render_invoice_pdf(invoice_data, company_data, contact_data)
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f"inline; filename=invoice-{invoice_data.get('transaction_no', invoice_id)}.pdf"
+        },
+    )
+
+
+def _parse_date(param_name):
+    value = request.args.get(param_name)
+    if not value:
+        return None, None
+    try:
+        return datetime.fromisoformat(value), None
+    except ValueError:
+        return None, (jsonify(error=f"Invalid {param_name} format"), 400)
+
+
+REPORT_TITLES = {
+    "income-statement": "Income Statement",
+    "balance-sheet": "Balance Sheet",
+    "aging-receivables": "Aging Schedule - Receivables",
+    "aging-payables": "Aging Schedule - Payables",
+}
+
+
+@bp.route("/reports/<report_type>/pdf", methods=["GET"])
+def report_pdf(report_type):
+    if report_type not in REPORT_TITLES:
+        return jsonify(error=f"Unknown report type: {report_type}"), 400
+
+    company_data = serialize_entity(g.session.entity)
+    title = REPORT_TITLES[report_type]
+    date_range = ""
+
+    try:
+        if report_type == "income-statement":
+            start_date, err = _parse_date("from")
+            if err:
+                return err
+            end_date, err = _parse_date("to")
+            if err:
+                return err
+            report = IncomeStatement(g.session, start_date, end_date)
+            report_data = serialize_report_section(
+                report.balances, report.accounts, report.totals, report.result_amounts
+            )
+            if start_date and end_date:
+                date_range = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+
+        elif report_type == "balance-sheet":
+            as_of, err = _parse_date("as_of")
+            if err:
+                return err
+            report = BalanceSheet(g.session, as_of)
+            report_data = serialize_report_section(
+                report.balances, report.accounts, report.totals, report.result_amounts
+            )
+            if as_of:
+                date_range = f"As of {as_of.strftime('%b %d, %Y')}"
+
+        elif report_type in ("aging-receivables", "aging-payables"):
+            as_of, err = _parse_date("as_of")
+            if err:
+                return err
+            acct_type = (
+                Account.AccountType.RECEIVABLE
+                if report_type == "aging-receivables"
+                else Account.AccountType.PAYABLE
+            )
+            report = AgingSchedule(g.session, acct_type, as_of)
+            report_data = {
+                "balances": {k: _dec(v) for k, v in report.balances.items()},
+                "result_amounts": {},
+            }
+            if as_of:
+                date_range = f"As of {as_of.strftime('%b %d, %Y')}"
+
+    except Exception as e:
+        return jsonify(error=str(e)), 400
+
+    pdf_bytes = render_report_pdf(title, report_data, company_data, date_range)
+    filename = f"{report_type}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"inline; filename={filename}"},
+    )
