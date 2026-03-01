@@ -25,6 +25,18 @@ export const fetchAgingPayables = (asOf) => {
   return apiFetch(`/reports/aging-payables?${params}`)
 }
 
+export const fetchAgingReceivablesDetail = (asOf) => {
+  const params = new URLSearchParams()
+  if (asOf) params.set('as_of', asOf)
+  return apiFetch(`/reports/aging-receivables-detail?${params}`)
+}
+
+export const fetchAgingPayablesDetail = (asOf) => {
+  const params = new URLSearchParams()
+  if (asOf) params.set('as_of', asOf)
+  return apiFetch(`/reports/aging-payables-detail?${params}`)
+}
+
 export const downloadReportPdf = (type, params = {}) => {
   const qs = new URLSearchParams(params)
   return apiFetch(`/reports/${type}/pdf?${qs}`, { responseType: 'blob' })

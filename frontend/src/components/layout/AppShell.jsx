@@ -1,8 +1,15 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, Navigate } from 'react-router-dom'
+import { useCompany } from '../../hooks/useCompany'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 
 export default function AppShell() {
+  const { company } = useCompany()
+
+  if (!company) {
+    return <Navigate to="/companies" replace />
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />

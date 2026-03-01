@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
 import {
   fetchIncomeStatement, fetchBalanceSheet,
   fetchAgingReceivables, fetchAgingPayables,
+  fetchAgingReceivablesDetail, fetchAgingPayablesDetail,
   downloadReportPdf,
 } from '../../api/reports'
 import { formatCurrency, todayISO } from '../../utils/format'
@@ -111,6 +111,78 @@ function AgingReport({ data }) {
   )
 }
 
+function ContactAgingDetail({ detail }) {
+  if (!detail) return null
+  const { contacts = [], unassigned } = detail
+
+  if (contacts.length === 0 && !unassigned) return null
+
+  return (
+    <div className="mt-6">
+      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">By Contact</h3>
+      {contacts.map((c) => (
+        <ContactCard key={c.contact_id} contact={c} />
+      ))}
+      {unassigned && unassigned.transactions?.length > 0 && (
+        <ContactCard
+          contact={{
+            contact_name: 'Unassigned',
+            total_outstanding: unassigned.total_outstanding,
+            transactions: unassigned.transactions,
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ContactCard({ contact }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="mb-3 border border-gray-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex justify-between items-center px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+      >
+        <span className="text-sm font-medium text-gray-800">{contact.contact_name}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-navy">
+            {formatCurrency(contact.total_outstanding)}
+          </span>
+          <span className="text-xs text-gray-400">{expanded ? '\u25B2' : '\u25BC'}</span>
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-4 py-2">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-gray-500 border-b border-gray-100">
+                <th className="text-left py-1 font-medium">Invoice/Bill #</th>
+                <th className="text-left py-1 font-medium">Date</th>
+                <th className="text-right py-1 font-medium">Amount</th>
+                <th className="text-right py-1 font-medium">Outstanding</th>
+                <th className="text-left py-1 font-medium pl-3">Age</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contact.transactions.map((tx) => (
+                <tr key={tx.transaction_no} className="border-b border-gray-50">
+                  <td className="py-1 text-gray-700">{tx.transaction_no}</td>
+                  <td className="py-1 text-gray-600">{tx.transaction_date?.split('T')[0]}</td>
+                  <td className="py-1 text-right text-gray-700">{formatCurrency(tx.amount)}</td>
+                  <td className="py-1 text-right font-medium text-gray-800">{formatCurrency(tx.outstanding)}</td>
+                  <td className="py-1 pl-3 text-gray-500">{tx.age_bracket}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ReportsIndex() {
   const { type } = useParams()
   const navigate = useNavigate()
@@ -120,6 +192,7 @@ export default function ReportsIndex() {
   const [dateTo, setDateTo] = useState('')
   const [asOf, setAsOf] = useState(todayISO())
   const [report, setReport] = useState(null)
+  const [agingDetail, setAgingDetail] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const needsDateRange = ['income-statement'].includes(selectedType)
@@ -128,6 +201,7 @@ export default function ReportsIndex() {
 
   const generateReport = async () => {
     setLoading(true)
+    setAgingDetail(null)
     try {
       let data
       switch (selectedType) {
@@ -139,9 +213,16 @@ export default function ReportsIndex() {
           break
         case 'aging-receivables':
           data = await fetchAgingReceivables(asOf)
+          // Also fetch per-contact detail
+          fetchAgingReceivablesDetail(asOf)
+            .then(setAgingDetail)
+            .catch(() => {})
           break
         case 'aging-payables':
           data = await fetchAgingPayables(asOf)
+          fetchAgingPayablesDetail(asOf)
+            .then(setAgingDetail)
+            .catch(() => {})
           break
         default:
           toast.error('Select a report type')
@@ -185,7 +266,7 @@ export default function ReportsIndex() {
           <FormField label="Report Type">
             <Select
               value={selectedType}
-              onChange={(e) => { setSelectedType(e.target.value); setReport(null) }}
+              onChange={(e) => { setSelectedType(e.target.value); setReport(null); setAgingDetail(null) }}
               className="!w-56"
             >
               <option value="">Select report...</option>
@@ -223,7 +304,10 @@ export default function ReportsIndex() {
             {reportTypes.find((rt) => rt.key === selectedType)?.label}
           </h2>
           {isAging ? (
-            <AgingReport data={report} />
+            <>
+              <AgingReport data={report} />
+              <ContactAgingDetail detail={agingDetail} />
+            </>
           ) : (
             <>
               <ReportSection title="Balances" data={report.balances} />

@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import text
 
 from python_accounting.models import Account, LineItem, Tax, Transaction
 from python_accounting.transactions import ClientInvoice
@@ -22,10 +23,22 @@ def _get_invoices(session):
     )
 
 
+def _serialize_with_contact(invoice, session=None):
+    """Serialize invoice and include contact_id from TransactionContact."""
+    data = serialize_transaction(invoice, session=session)
+    tc = (
+        g.session.query(TransactionContact)
+        .filter(TransactionContact.transaction_id == invoice.id)
+        .first()
+    )
+    data["contact_id"] = tc.contact_id if tc else None
+    return data
+
+
 @bp.route("/invoices", methods=["GET"])
 def list_invoices():
     invoices = _get_invoices(g.session)
-    return jsonify([serialize_transaction(inv) for inv in invoices])
+    return jsonify([_serialize_with_contact(inv, session=g.session) for inv in invoices])
 
 
 @bp.route("/invoices/<int:invoice_id>", methods=["GET"])
@@ -33,7 +46,7 @@ def get_invoice(invoice_id):
     invoice = g.session.get(ClientInvoice, invoice_id)
     if not invoice:
         return jsonify(error="Invoice not found"), 404
-    return jsonify(serialize_transaction(invoice))
+    return jsonify(_serialize_with_contact(invoice))
 
 
 @bp.route("/invoices", methods=["POST"])
@@ -125,18 +138,92 @@ def update_invoice(invoice_id):
     if not data:
         return jsonify(error="Request body required"), 400
 
+    # Loaded objects lack __init__-set attributes needed by
+    # python-accounting's before_flush validator. Set them now
+    # before any changes that would mark the object dirty.
+    if not hasattr(invoice, 'main_account_types'):
+        invoice.main_account_types = [Account.AccountType.RECEIVABLE]
+        invoice.credited = False
+        invoice.line_item_types = [Account.AccountType.OPERATING_REVENUE]
+        invoice.account_type_map = {
+            "ClientInvoice": Account.AccountType.RECEIVABLE,
+        }
+
+    # Update basic fields
     if "narration" in data:
         invoice.narration = data["narration"]
     if "reference" in data:
         invoice.reference = data["reference"]
+    if "transaction_date" in data:
+        try:
+            invoice.transaction_date = datetime.fromisoformat(data["transaction_date"])
+        except ValueError:
+            return jsonify(error="Invalid transaction_date format"), 400
 
     try:
+        # Replace line items if provided
+        line_items_data = data.get("line_items")
+        if line_items_data is not None:
+            # Delete existing line items via raw SQL
+            # (AccountingSession doesn't support ORM Delete objects)
+            conn = g.session.connection()
+            conn.execute(
+                text('DELETE FROM line_item WHERE transaction_id = :tid'),
+                {"tid": invoice_id},
+            )
+            g.session.flush()
+
+            entity = g.session.entity
+
+            # Recreate line items
+            for li_data in line_items_data:
+                line = LineItem(
+                    narration=li_data.get("narration", ""),
+                    account_id=li_data["account_id"],
+                    amount=Decimal(str(li_data["amount"])),
+                    quantity=Decimal(str(li_data.get("quantity", 1))),
+                    tax_id=li_data.get("tax_id"),
+                    entity_id=entity.id,
+                    transaction_id=invoice_id,
+                )
+                g.session.add(line)
+                g.session.flush()
+
+            # Expire to pick up new line_items on next access
+            g.session.expire(invoice)
+            # Re-set init attrs cleared by expire
+            invoice.main_account_types = [Account.AccountType.RECEIVABLE]
+            invoice.credited = False
+            invoice.line_item_types = [Account.AccountType.OPERATING_REVENUE]
+            invoice.account_type_map = {
+                "ClientInvoice": Account.AccountType.RECEIVABLE,
+            }
+
+        # Update contact link if contact_id provided
+        contact_id = data.get("contact_id")
+        if contact_id is not None:
+            # Remove existing link via raw SQL
+            conn = g.session.connection()
+            conn.execute(
+                text('DELETE FROM transaction_contacts WHERE transaction_id = :tid'),
+                {"tid": invoice_id},
+            )
+            if contact_id:
+                tc = TransactionContact(
+                    transaction_id=invoice.id, contact_id=contact_id
+                )
+                g.session.add(tc)
+
+        # Auto-post if requested
+        if data.get("post", False):
+            invoice.post(g.session)
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(invoice))
+    return jsonify(_serialize_with_contact(invoice))
 
 
 @bp.route("/invoices/<int:invoice_id>", methods=["DELETE"])

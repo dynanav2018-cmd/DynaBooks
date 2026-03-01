@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
-import { fetchReceipts, createReceipt, fetchPayments, createPayment, createAssignment } from '../../api/banking'
+import {
+  fetchReceipts, createReceipt, deleteReceipt, voidReceipt,
+  fetchPayments, createPayment, deletePayment, voidPayment,
+  createAssignment,
+} from '../../api/banking'
 import { fetchAccounts } from '../../api/accounts'
 import { fetchInvoices } from '../../api/invoices'
 import { fetchBills } from '../../api/bills'
@@ -20,11 +24,12 @@ export default function BankingIndex() {
   const { data: receipts, loading: loadingReceipts, refetch: refetchReceipts } = useApi(fetchReceipts)
   const { data: payments, loading: loadingPayments, refetch: refetchPayments } = useApi(fetchPayments)
   const { data: bankAccounts } = useApi(() => fetchAccounts('Bank'), [])
-  const { data: invoices } = useApi(fetchInvoices, [])
-  const { data: bills } = useApi(fetchBills, [])
+  const { data: invoices, refetch: refetchInvoices } = useApi(fetchInvoices, [])
+  const { data: bills, refetch: refetchBills } = useApi(fetchBills, [])
 
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [confirmVoid, setConfirmVoid] = useState(null) // {type, id, no}
 
   const [receiptForm, setReceiptForm] = useState({
     narration: 'Client Receipt',
@@ -51,26 +56,41 @@ export default function BankingIndex() {
     }
     setSaving(true)
     try {
+      const receiptAmount = parseFloat(receiptForm.amount)
       const result = await createReceipt({
         narration: receiptForm.narration,
         transaction_date: receiptForm.transaction_date,
         line_items: [{
           narration: receiptForm.narration,
           account_id: parseInt(receiptForm.bank_account_id),
-          amount: parseFloat(receiptForm.amount),
+          amount: receiptAmount,
         }],
         post: true,
       })
 
       if (receiptForm.assign_invoice_id) {
+        const invoice = postedInvoices.find(
+          (inv) => inv.id === parseInt(receiptForm.assign_invoice_id)
+        )
+        const invoiceOutstanding = invoice?.outstanding ?? invoice?.amount ?? receiptAmount
+        const assignAmount = Math.min(receiptAmount, invoiceOutstanding)
+
         await createAssignment({
           transaction_id: result.id,
           assigned_id: parseInt(receiptForm.assign_invoice_id),
           assigned_type: 'ClientInvoice',
-          amount: parseFloat(receiptForm.amount),
+          amount: assignAmount,
           assignment_date: receiptForm.transaction_date,
         })
-        toast.success('Receipt created and assigned to invoice')
+
+        if (receiptAmount > invoiceOutstanding) {
+          const excess = receiptAmount - invoiceOutstanding
+          toast.success(
+            `Receipt created. ${formatCurrency(excess)} remains as credit on account.`
+          )
+        } else {
+          toast.success('Receipt created and assigned to invoice')
+        }
       } else {
         toast.success('Receipt created')
       }
@@ -84,6 +104,7 @@ export default function BankingIndex() {
         assign_invoice_id: '',
       })
       refetchReceipts()
+      refetchInvoices()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -98,26 +119,41 @@ export default function BankingIndex() {
     }
     setSaving(true)
     try {
+      const paymentAmount = parseFloat(paymentForm.amount)
       const result = await createPayment({
         narration: paymentForm.narration,
         transaction_date: paymentForm.transaction_date,
         line_items: [{
           narration: paymentForm.narration,
           account_id: parseInt(paymentForm.bank_account_id),
-          amount: parseFloat(paymentForm.amount),
+          amount: paymentAmount,
         }],
         post: true,
       })
 
       if (paymentForm.assign_bill_id) {
+        const bill = postedBills.find(
+          (b) => b.id === parseInt(paymentForm.assign_bill_id)
+        )
+        const billOutstanding = bill?.outstanding ?? bill?.amount ?? paymentAmount
+        const assignAmount = Math.min(paymentAmount, billOutstanding)
+
         await createAssignment({
           transaction_id: result.id,
           assigned_id: parseInt(paymentForm.assign_bill_id),
           assigned_type: 'SupplierBill',
-          amount: parseFloat(paymentForm.amount),
+          amount: assignAmount,
           assignment_date: paymentForm.transaction_date,
         })
-        toast.success('Payment created and assigned to bill')
+
+        if (paymentAmount > billOutstanding) {
+          const excess = paymentAmount - billOutstanding
+          toast.success(
+            `Payment created. ${formatCurrency(excess)} remains as credit on account.`
+          )
+        } else {
+          toast.success('Payment created and assigned to bill')
+        }
       } else {
         toast.success('Payment created')
       }
@@ -131,11 +167,52 @@ export default function BankingIndex() {
         assign_bill_id: '',
       })
       refetchPayments()
+      refetchBills()
     } catch (err) {
       toast.error(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleVoidOrDelete = async (type, item) => {
+    if (item.is_posted) {
+      setConfirmVoid({ type, id: item.id, no: item.transaction_no })
+    } else {
+      try {
+        if (type === 'receipt') {
+          await deleteReceipt(item.id)
+          toast.success('Draft receipt deleted')
+          refetchReceipts()
+        } else {
+          await deletePayment(item.id)
+          toast.success('Draft payment deleted')
+          refetchPayments()
+        }
+      } catch (err) {
+        toast.error(err.message)
+      }
+    }
+  }
+
+  const handleConfirmVoid = async () => {
+    if (!confirmVoid) return
+    try {
+      if (confirmVoid.type === 'receipt') {
+        await voidReceipt(confirmVoid.id)
+        toast.success(`Receipt ${confirmVoid.no} voided`)
+        refetchReceipts()
+        refetchInvoices()
+      } else {
+        await voidPayment(confirmVoid.id)
+        toast.success(`Payment ${confirmVoid.no} voided`)
+        refetchPayments()
+        refetchBills()
+      }
+    } catch (err) {
+      toast.error(err.message)
+    }
+    setConfirmVoid(null)
   }
 
   const receiptColumns = [
@@ -152,6 +229,22 @@ export default function BankingIndex() {
       label: 'Status',
       render: (v) => <StatusBadge status={v ? 'Posted' : 'Draft'} />,
     },
+    {
+      key: '_actions',
+      label: 'Actions',
+      render: (_, row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleVoidOrDelete('receipt', row) }}
+          className={`text-xs px-2 py-1 rounded font-medium ${
+            row.is_posted
+              ? 'text-red-700 bg-red-50 hover:bg-red-100'
+              : 'text-gray-700 bg-gray-50 hover:bg-gray-100'
+          }`}
+        >
+          {row.is_posted ? 'Void' : 'Delete'}
+        </button>
+      ),
+    },
   ]
 
   const paymentColumns = [
@@ -167,6 +260,22 @@ export default function BankingIndex() {
       key: 'is_posted',
       label: 'Status',
       render: (v) => <StatusBadge status={v ? 'Posted' : 'Draft'} />,
+    },
+    {
+      key: '_actions',
+      label: 'Actions',
+      render: (_, row) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); handleVoidOrDelete('payment', row) }}
+          className={`text-xs px-2 py-1 rounded font-medium ${
+            row.is_posted
+              ? 'text-red-700 bg-red-50 hover:bg-red-100'
+              : 'text-gray-700 bg-gray-50 hover:bg-gray-100'
+          }`}
+        >
+          {row.is_posted ? 'Void' : 'Delete'}
+        </button>
+      ),
     },
   ]
 
@@ -218,6 +327,26 @@ export default function BankingIndex() {
         />
       )}
 
+      {/* Void Confirmation Modal */}
+      <Modal
+        open={!!confirmVoid}
+        onClose={() => setConfirmVoid(null)}
+        title="Confirm Void"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">
+            Are you sure you want to void <strong>{confirmVoid?.no}</strong>?
+            This will create a reversing journal entry and remove any invoice/bill assignments.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button variant="secondary" onClick={() => setConfirmVoid(null)}>Cancel</Button>
+            <Button onClick={handleConfirmVoid} className="!bg-red-600 hover:!bg-red-700">
+              Void
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Receipt Modal */}
       <Modal open={showReceiptModal} onClose={() => setShowReceiptModal(false)} title="New Receipt" wide>
         <div className="space-y-4">
@@ -264,6 +393,7 @@ export default function BankingIndex() {
               {postedInvoices.map((inv) => (
                 <option key={inv.id} value={inv.id}>
                   {inv.transaction_no} - {formatCurrency(inv.amount)}
+                  {inv.outstanding != null ? ` (Outstanding: ${formatCurrency(inv.outstanding)})` : ''}
                 </option>
               ))}
             </Select>
@@ -325,6 +455,7 @@ export default function BankingIndex() {
               {postedBills.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.transaction_no} - {formatCurrency(b.amount)}
+                  {b.outstanding != null ? ` (Outstanding: ${formatCurrency(b.outstanding)})` : ''}
                 </option>
               ))}
             </Select>

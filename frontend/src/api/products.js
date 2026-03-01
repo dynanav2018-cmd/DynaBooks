@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 
-export const fetchProducts = () => apiFetch('/products')
+export const fetchProducts = (type) =>
+  apiFetch(`/products${type ? `?type=${encodeURIComponent(type)}` : ''}`)
 
 export const createProduct = (data) =>
   apiFetch('/products', { method: 'POST', body: data })

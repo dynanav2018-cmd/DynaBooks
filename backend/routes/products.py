@@ -16,6 +16,10 @@ def list_products():
     if not show_inactive:
         query = query.filter(Product.is_active == True)
 
+    product_type = request.args.get("type")
+    if product_type in ("product", "recurring"):
+        query = query.filter(Product.product_type == product_type)
+
     products = query.all()
     return jsonify([serialize_product(p) for p in products])
 
@@ -27,16 +31,25 @@ def create_product():
         return jsonify(error="Request body required"), 400
 
     name = data.get("name")
-    revenue_account_id = data.get("revenue_account_id")
+    if not name:
+        return jsonify(error="name is required"), 400
 
-    if not name or not revenue_account_id:
-        return jsonify(error="name and revenue_account_id are required"), 400
+    product_type = data.get("product_type", "product")
+    if product_type not in ("product", "recurring"):
+        return jsonify(error="product_type must be 'product' or 'recurring'"), 400
+
+    if product_type == "product" and not data.get("revenue_account_id"):
+        return jsonify(error="revenue_account_id is required for products"), 400
+    if product_type == "recurring" and not data.get("expense_account_id"):
+        return jsonify(error="expense_account_id is required for recurring expenses"), 400
 
     product = Product(
         name=name,
         description=data.get("description"),
         default_price=data.get("default_price", 0),
-        revenue_account_id=revenue_account_id,
+        product_type=product_type,
+        revenue_account_id=data.get("revenue_account_id"),
+        expense_account_id=data.get("expense_account_id"),
         tax_id=data.get("tax_id"),
     )
     g.session.add(product)
@@ -60,7 +73,10 @@ def update_product(product_id):
     if not data:
         return jsonify(error="Request body required"), 400
 
-    updatable = ["name", "description", "default_price", "revenue_account_id", "tax_id"]
+    updatable = [
+        "name", "description", "default_price", "revenue_account_id",
+        "expense_account_id", "tax_id", "product_type",
+    ]
     for field in updatable:
         if field in data:
             setattr(product, field, data[field])

@@ -21,6 +21,19 @@ def _parse_account_type(value):
         return None
 
 
+EXPENSE_TYPES = {
+    Account.AccountType.DIRECT_EXPENSE,
+    Account.AccountType.OPERATING_EXPENSE,
+    Account.AccountType.OVERHEAD_EXPENSE,
+    Account.AccountType.OTHER_EXPENSE,
+}
+
+REVENUE_TYPES = {
+    Account.AccountType.OPERATING_REVENUE,
+    Account.AccountType.NON_OPERATING_REVENUE,
+}
+
+
 @bp.route("/accounts", methods=["GET"])
 def list_accounts():
     query = g.session.query(Account)
@@ -31,6 +44,12 @@ def list_accounts():
         if at is None:
             return jsonify(error=f"Invalid account type: {account_type}"), 400
         query = query.filter(Account.account_type == at)
+
+    category = request.args.get("category")
+    if category == "expense":
+        query = query.filter(Account.account_type.in_(EXPENSE_TYPES))
+    elif category == "revenue":
+        query = query.filter(Account.account_type.in_(REVENUE_TYPES))
 
     accounts = query.all()
     return jsonify([serialize_account(a) for a in accounts])

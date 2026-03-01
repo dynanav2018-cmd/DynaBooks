@@ -1,5 +1,6 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, Link } from 'react-router-dom'
 import { useState } from 'react'
+import { useCompany } from '../../hooks/useCompany'
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0h4' },
@@ -25,6 +26,7 @@ const navItems = [
     children: [
       { label: 'Journal Entries', path: '/journals' },
       { label: 'Chart of Accounts', path: '/accounts' },
+      { label: 'Year-End Close', path: '/closing' },
     ],
   },
   { label: 'Banking', path: '/banking', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' },
@@ -43,6 +45,7 @@ function NavIcon({ d }) {
 export default function Sidebar() {
   const location = useLocation()
   const [expanded, setExpanded] = useState({})
+  const { company } = useCompany()
 
   const toggleExpand = (label) => {
     setExpanded((prev) => ({ ...prev, [label]: !prev[label] }))
@@ -57,7 +60,14 @@ export default function Sidebar() {
     <aside className="w-60 bg-navy text-white flex flex-col min-h-screen">
       <div className="px-5 py-5 border-b border-navy-light">
         <h1 className="text-xl font-bold tracking-tight">DynaBooks</h1>
-        <p className="text-xs text-blue-300 mt-0.5">DynaNav Systems Inc.</p>
+        <p className="text-xs text-blue-300 mt-0.5">
+          {company?.name || 'DynaNav Systems Inc.'}
+        </p>
+        {company && (
+          <Link to="/companies" className="text-xs text-blue-400 hover:text-white mt-1 inline-block">
+            Switch Company
+          </Link>
+        )}
       </div>
       <nav className="flex-1 py-3 overflow-y-auto">
         {navItems.map((item) =>

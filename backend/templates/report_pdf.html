@@ -21,6 +21,10 @@
 </head>
 <body>
   <div class="header">
+    {% if logo_base64 %}
+    <img src="{{ logo_base64 }}" style="max-height: 60px; max-width: 200px; margin-bottom: 6px;" />
+    <br/>
+    {% endif %}
     <div class="company-name">{{ company.name }}</div>
     <div class="report-title">{{ report_title }}</div>
     <div class="date-range">{{ date_range }}</div>
@@ -80,6 +84,71 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
+
+  {% if aging_detail and aging_detail.contacts %}
+  <div style="margin-top: 30px;">
+    <h3 style="font-size: 14px; color: #1B3A5C; margin-bottom: 10px;">Detail by Contact</h3>
+    {% for contact in aging_detail.contacts %}
+    <div style="margin-bottom: 15px;">
+      <div style="font-size: 12px; font-weight: bold; color: #2E75B6; padding: 4px 0; border-bottom: 1px solid #2E75B6;">
+        {{ contact.contact_name }} &mdash; Outstanding: ${{ '%.2f' | format(contact.total_outstanding|float) }}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice/Bill #</th>
+            <th>Date</th>
+            <th class="right">Amount</th>
+            <th class="right">Outstanding</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in contact.transactions %}
+          <tr>
+            <td>{{ tx.transaction_no }}</td>
+            <td>{{ tx.transaction_date }}</td>
+            <td class="right">${{ '%.2f' | format(tx.amount|float) }}</td>
+            <td class="right">${{ '%.2f' | format(tx.outstanding|float) }}</td>
+            <td>{{ tx.age_bracket }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+
+    {% if aging_detail.unassigned %}
+    <div style="margin-bottom: 15px;">
+      <div style="font-size: 12px; font-weight: bold; color: #666; padding: 4px 0; border-bottom: 1px solid #999;">
+        Unassigned &mdash; Outstanding: ${{ '%.2f' | format(aging_detail.unassigned.total_outstanding|float) }}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice/Bill #</th>
+            <th>Date</th>
+            <th class="right">Amount</th>
+            <th class="right">Outstanding</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in aging_detail.unassigned.transactions %}
+          <tr>
+            <td>{{ tx.transaction_no }}</td>
+            <td>{{ tx.transaction_date }}</td>
+            <td class="right">${{ '%.2f' | format(tx.amount|float) }}</td>
+            <td class="right">${{ '%.2f' | format(tx.outstanding|float) }}</td>
+            <td>{{ tx.age_bracket }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
   {% endif %}
 
   <div class="footer">

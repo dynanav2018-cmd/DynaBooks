@@ -123,7 +123,7 @@ export default function BillDetail() {
             <div className="w-64 space-y-1 text-sm">
               {Object.entries(bill.tax.taxes || {}).map(([code, info]) => (
                 <div key={code} className="flex justify-between text-gray-600">
-                  <span>{info.name} ({(info.rate * 100).toFixed(0)}%)</span>
+                  <span>{info.name} ({info.rate})</span>
                   <span>{formatCurrency(info.amount)}</span>
                 </div>
               ))}

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ToastProvider } from './hooks/useToast'
+import { CompanyProvider } from './hooks/useCompany'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import InvoiceList from './pages/invoices/InvoiceList'
@@ -15,32 +16,39 @@ import ContactList from './pages/contacts/ContactList'
 import AccountList from './pages/accounts/AccountList'
 import ReportsIndex from './pages/reports/ReportsIndex'
 import SettingsIndex from './pages/settings/SettingsIndex'
+import ClosingIndex from './pages/closing/ClosingIndex'
+import CompanySelector from './pages/company/CompanySelector'
 
 export default function App() {
   return (
-    <ToastProvider>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="invoices" element={<InvoiceList />} />
-          <Route path="invoices/new" element={<InvoiceForm />} />
-          <Route path="invoices/:id" element={<InvoiceDetail />} />
-          <Route path="invoices/:id/edit" element={<InvoiceForm />} />
-          <Route path="bills" element={<BillList />} />
-          <Route path="bills/new" element={<BillForm />} />
-          <Route path="bills/:id" element={<BillDetail />} />
-          <Route path="bills/:id/edit" element={<BillForm />} />
-          <Route path="journals" element={<JournalList />} />
-          <Route path="journals/new" element={<JournalForm />} />
-          <Route path="banking" element={<BankingIndex />} />
-          <Route path="contacts" element={<ContactList />} />
-          <Route path="accounts" element={<AccountList />} />
-          <Route path="reports" element={<ReportsIndex />} />
-          <Route path="reports/:type" element={<ReportsIndex />} />
-          <Route path="settings" element={<SettingsIndex />} />
-        </Route>
-      </Routes>
-    </ToastProvider>
+    <CompanyProvider>
+      <ToastProvider>
+        <Routes>
+          <Route path="companies" element={<CompanySelector />} />
+          <Route element={<AppShell />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="invoices" element={<InvoiceList />} />
+            <Route path="invoices/new" element={<InvoiceForm />} />
+            <Route path="invoices/:id" element={<InvoiceDetail />} />
+            <Route path="invoices/:id/edit" element={<InvoiceForm />} />
+            <Route path="bills" element={<BillList />} />
+            <Route path="bills/new" element={<BillForm />} />
+            <Route path="bills/:id" element={<BillDetail />} />
+            <Route path="bills/:id/edit" element={<BillForm />} />
+            <Route path="journals" element={<JournalList />} />
+            <Route path="journals/new" element={<JournalForm />} />
+            <Route path="journals/:id/edit" element={<JournalForm />} />
+            <Route path="banking" element={<BankingIndex />} />
+            <Route path="contacts" element={<ContactList />} />
+            <Route path="accounts" element={<AccountList />} />
+            <Route path="reports" element={<ReportsIndex />} />
+            <Route path="reports/:type" element={<ReportsIndex />} />
+            <Route path="settings" element={<SettingsIndex />} />
+            <Route path="closing" element={<ClosingIndex />} />
+          </Route>
+        </Routes>
+      </ToastProvider>
+    </CompanyProvider>
   )
 }

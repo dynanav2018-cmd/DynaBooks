@@ -1,8 +1,9 @@
 """Flask application factory for DynaBooks."""
 
 import os
+import sys
 
-from flask import Flask, g, jsonify, send_from_directory
+from flask import Flask, g, jsonify, request, send_from_directory
 
 from backend.config import make_session
 
@@ -23,7 +24,17 @@ def create_app(session_factory=None):
     # ── Session management ──────────────────────────────────────────
     @app.before_request
     def open_session():
-        g.session = session_factory()
+        # Multi-company support: if X-Company header is present, use
+        # a per-company session.  Otherwise fall back to default.
+        company_slug = request.headers.get("X-Company")
+        if company_slug and session_factory is make_session:
+            from backend.company_manager import make_company_session
+            try:
+                g.session = make_company_session(company_slug)
+            except ValueError:
+                g.session = session_factory()
+        else:
+            g.session = session_factory()
 
     @app.teardown_request
     def close_session(exc):
@@ -61,6 +72,9 @@ def create_app(session_factory=None):
     from backend.routes.reports import bp as reports_bp
     from backend.routes.dashboard import bp as dashboard_bp
     from backend.routes.pdf import bp as pdf_bp
+    from backend.routes.closing import bp as closing_bp
+    from backend.routes.recurring_journals import bp as recurring_journals_bp
+    from backend.routes.companies import bp as companies_bp
 
     app.register_blueprint(company_bp)
     app.register_blueprint(accounts_bp)
@@ -75,11 +89,18 @@ def create_app(session_factory=None):
     app.register_blueprint(reports_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(pdf_bp)
+    app.register_blueprint(closing_bp)
+    app.register_blueprint(recurring_journals_bp)
+    app.register_blueprint(companies_bp)
 
     # ── SPA static file serving ──────────────────────────────────────
-    frontend_dist = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "frontend", "dist"
-    )
+    # Handle PyInstaller frozen paths
+    if getattr(sys, 'frozen', False):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+
+    frontend_dist = os.path.join(base_dir, "frontend", "dist")
 
     if os.path.isdir(frontend_dist):
         @app.route("/", defaults={"path": ""})

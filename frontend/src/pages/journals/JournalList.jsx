@@ -62,6 +62,13 @@ export default function JournalList() {
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
           {!row.is_posted && (
             <>
+              <Link
+                to={`/journals/${row.id}/edit`}
+                className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Edit
+              </Link>
               <button
                 onClick={(e) => handlePost(e, row)}
                 className="px-2 py-1 text-xs bg-accent text-white rounded hover:bg-accent-dark"

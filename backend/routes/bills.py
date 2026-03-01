@@ -4,6 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import text
 
 from python_accounting.models import Account, LineItem, Transaction
 from python_accounting.transactions import SupplierBill
@@ -22,10 +23,22 @@ def _get_bills(session):
     )
 
 
+def _serialize_with_contact(bill, session=None):
+    """Serialize bill and include contact_id from TransactionContact."""
+    data = serialize_transaction(bill, session=session)
+    tc = (
+        g.session.query(TransactionContact)
+        .filter(TransactionContact.transaction_id == bill.id)
+        .first()
+    )
+    data["contact_id"] = tc.contact_id if tc else None
+    return data
+
+
 @bp.route("/bills", methods=["GET"])
 def list_bills():
     bills = _get_bills(g.session)
-    return jsonify([serialize_transaction(b) for b in bills])
+    return jsonify([_serialize_with_contact(b, session=g.session) for b in bills])
 
 
 @bp.route("/bills/<int:bill_id>", methods=["GET"])
@@ -33,7 +46,7 @@ def get_bill(bill_id):
     bill = g.session.get(SupplierBill, bill_id)
     if not bill:
         return jsonify(error="Bill not found"), 404
-    return jsonify(serialize_transaction(bill))
+    return jsonify(_serialize_with_contact(bill))
 
 
 @bp.route("/bills", methods=["POST"])
@@ -123,18 +136,91 @@ def update_bill(bill_id):
     if not data:
         return jsonify(error="Request body required"), 400
 
+    # Loaded objects lack __init__-set attributes needed by
+    # python-accounting's before_flush validator. Set them now
+    # before any changes that would mark the object dirty.
+    if not hasattr(bill, 'main_account_types'):
+        bill.main_account_types = [Account.AccountType.PAYABLE]
+        bill.credited = True
+        bill.line_item_types = Account.purchasables
+        bill.account_type_map = {
+            "SupplierBill": Account.AccountType.PAYABLE,
+        }
+
+    # Update basic fields
     if "narration" in data:
         bill.narration = data["narration"]
     if "reference" in data:
         bill.reference = data["reference"]
+    if "transaction_date" in data:
+        try:
+            bill.transaction_date = datetime.fromisoformat(data["transaction_date"])
+        except ValueError:
+            return jsonify(error="Invalid transaction_date format"), 400
 
     try:
+        # Replace line items if provided
+        line_items_data = data.get("line_items")
+        if line_items_data is not None:
+            # Delete existing line items via raw SQL
+            # (AccountingSession doesn't support ORM Delete objects)
+            conn = g.session.connection()
+            conn.execute(
+                text('DELETE FROM line_item WHERE transaction_id = :tid'),
+                {"tid": bill_id},
+            )
+            g.session.flush()
+
+            entity = g.session.entity
+
+            # Recreate line items
+            for li_data in line_items_data:
+                line = LineItem(
+                    narration=li_data.get("narration", ""),
+                    account_id=li_data["account_id"],
+                    amount=Decimal(str(li_data["amount"])),
+                    quantity=Decimal(str(li_data.get("quantity", 1))),
+                    tax_id=li_data.get("tax_id"),
+                    entity_id=entity.id,
+                    transaction_id=bill_id,
+                )
+                g.session.add(line)
+                g.session.flush()
+
+            # Expire to pick up new line_items on next access
+            g.session.expire(bill)
+            # Re-set init attrs cleared by expire
+            bill.main_account_types = [Account.AccountType.PAYABLE]
+            bill.credited = True
+            bill.line_item_types = Account.purchasables
+            bill.account_type_map = {
+                "SupplierBill": Account.AccountType.PAYABLE,
+            }
+
+        # Update contact link if contact_id provided
+        contact_id = data.get("contact_id")
+        if contact_id is not None:
+            conn = g.session.connection()
+            conn.execute(
+                text('DELETE FROM transaction_contacts WHERE transaction_id = :tid'),
+                {"tid": bill_id},
+            )
+            if contact_id:
+                tc = TransactionContact(
+                    transaction_id=bill.id, contact_id=contact_id
+                )
+                g.session.add(tc)
+
+        # Auto-post if requested
+        if data.get("post", False):
+            bill.post(g.session)
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(bill))
+    return jsonify(_serialize_with_contact(bill))
 
 
 @bp.route("/bills/<int:bill_id>", methods=["DELETE"])

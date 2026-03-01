@@ -25,10 +25,10 @@ CHART_OF_ACCOUNTS = [
     ("Owner's Equity", Account.AccountType.EQUITY, "3000"),
     ("Retained Earnings", Account.AccountType.EQUITY, "3100"),
     # Revenue
-    ("Product Sales -- GPS Systems", Account.AccountType.OPERATING_REVENUE, "4000"),
-    ("Product Sales -- Accessories", Account.AccountType.OPERATING_REVENUE, "4010"),
-    ("Service Revenue -- Subscriptions", Account.AccountType.OPERATING_REVENUE, "4020"),
-    ("Service Revenue -- Support", Account.AccountType.OPERATING_REVENUE, "4030"),
+    ("Product Sales — GPS Systems", Account.AccountType.OPERATING_REVENUE, "4000"),
+    ("Product Sales — Accessories", Account.AccountType.OPERATING_REVENUE, "4010"),
+    ("Service Revenue — Subscriptions", Account.AccountType.OPERATING_REVENUE, "4020"),
+    ("Service Revenue — Support", Account.AccountType.OPERATING_REVENUE, "4030"),
     ("Shipping Revenue", Account.AccountType.OPERATING_REVENUE, "4100"),
     ("Other Income", Account.AccountType.NON_OPERATING_REVENUE, "4900"),
     # Expenses

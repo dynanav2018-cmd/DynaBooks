@@ -31,9 +31,24 @@
   <table style="width:100%; border:none; margin:0;">
     <tr>
       <td style="border:none; padding:0; vertical-align:top;">
+        {% if logo_base64 %}
+        <img src="{{ logo_base64 }}" style="max-height: 60px; max-width: 200px; margin-bottom: 6px;" />
+        <br/>
+        {% endif %}
         <div class="company-name">{{ company.name }}</div>
         <div class="company-details">
-          {% if company.locale %}{{ company.locale }}{% endif %}
+          {% if company_info %}
+            {% if company_info.address_line_1 %}{{ company_info.address_line_1 }}<br>{% endif %}
+            {% if company_info.address_line_2 %}{{ company_info.address_line_2 }}<br>{% endif %}
+            {% if company_info.city or company_info.province_state or company_info.postal_code %}
+              {% if company_info.city %}{{ company_info.city }}{% endif %}{% if company_info.city and company_info.province_state %}, {% endif %}{% if company_info.province_state %}{{ company_info.province_state }}{% endif %}  {% if company_info.postal_code %}{{ company_info.postal_code }}{% endif %}<br>
+            {% endif %}
+            {% if company_info.country %}{{ company_info.country }}<br>{% endif %}
+            {% if company_info.phone %}Tel: {{ company_info.phone }}<br>{% endif %}
+            {% if company_info.email %}{{ company_info.email }}{% endif %}
+          {% elif company.locale %}
+            {{ company.locale }}
+          {% endif %}
         </div>
       </td>
       <td style="border:none; padding:0; vertical-align:top; text-align:right;">
@@ -54,6 +69,10 @@
       <strong>{{ contact.name }}</strong><br>
       {% if contact.address_line_1 %}{{ contact.address_line_1 }}<br>{% endif %}
       {% if contact.address_line_2 %}{{ contact.address_line_2 }}<br>{% endif %}
+      {% if contact.city or contact.province_state or contact.postal_code %}
+        {% if contact.city %}{{ contact.city }}{% endif %}{% if contact.city and contact.province_state %}, {% endif %}{% if contact.province_state %}{{ contact.province_state }}{% endif %}  {% if contact.postal_code %}{{ contact.postal_code }}{% endif %}<br>
+      {% endif %}
+      {% if contact.country %}{{ contact.country }}<br>{% endif %}
       {% if contact.email %}{{ contact.email }}<br>{% endif %}
       {% if contact.tax_number %}Tax #: {{ contact.tax_number }}{% endif %}
     </div>

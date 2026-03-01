@@ -49,6 +49,9 @@ def create_contact():
         phone=data.get("phone"),
         address_line_1=data.get("address_line_1"),
         address_line_2=data.get("address_line_2"),
+        city=data.get("city"),
+        province_state=data.get("province_state"),
+        postal_code=data.get("postal_code"),
         country=data.get("country"),
         tax_number=data.get("tax_number"),
         payment_terms_days=data.get("payment_terms_days", 30),
@@ -77,8 +80,8 @@ def update_contact(contact_id):
 
     updatable = [
         "name", "contact_type", "email", "phone",
-        "address_line_1", "address_line_2", "country",
-        "tax_number", "payment_terms_days", "notes",
+        "address_line_1", "address_line_2", "city", "province_state", "postal_code",
+        "country", "tax_number", "payment_terms_days", "notes",
     ]
     for field in updatable:
         if field in data:

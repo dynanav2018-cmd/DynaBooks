@@ -13,17 +13,27 @@ from python_accounting.reports import (
 from python_accounting.transactions import ClientInvoice, SupplierBill
 
 from backend.models.contact import Contact
+from backend.models.company_info import CompanyInfo
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import (
     serialize_transaction,
     serialize_entity,
     serialize_contact,
+    serialize_company_info,
     serialize_report_section,
     _dec,
 )
 from backend.services.pdf_service import render_invoice_pdf, render_report_pdf
 
 bp = Blueprint("pdf", __name__, url_prefix="/api")
+
+
+def _get_company_info_data():
+    """Load company info for PDF templates."""
+    info = g.session.query(CompanyInfo).filter(
+        CompanyInfo.entity_id == g.session.entity.id
+    ).first()
+    return serialize_company_info(info)
 
 
 @bp.route("/invoices/<int:invoice_id>/pdf", methods=["GET"])
@@ -34,6 +44,7 @@ def invoice_pdf(invoice_id):
 
     invoice_data = serialize_transaction(invoice)
     company_data = serialize_entity(g.session.entity)
+    company_info = _get_company_info_data()
 
     # Look up linked contact
     contact_data = None
@@ -47,7 +58,7 @@ def invoice_pdf(invoice_id):
         if contact:
             contact_data = serialize_contact(contact)
 
-    pdf_bytes = render_invoice_pdf(invoice_data, company_data, contact_data)
+    pdf_bytes = render_invoice_pdf(invoice_data, company_data, contact_data, company_info)
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
@@ -65,6 +76,7 @@ def bill_pdf(bill_id):
 
     bill_data = serialize_transaction(bill)
     company_data = serialize_entity(g.session.entity)
+    company_info = _get_company_info_data()
 
     # Look up linked contact
     contact_data = None
@@ -78,7 +90,7 @@ def bill_pdf(bill_id):
         if contact:
             contact_data = serialize_contact(contact)
 
-    pdf_bytes = render_invoice_pdf(bill_data, company_data, contact_data)
+    pdf_bytes = render_invoice_pdf(bill_data, company_data, contact_data, company_info)
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
@@ -155,6 +167,10 @@ def report_pdf(report_type):
                 "balances": {k: _dec(v) for k, v in report.balances.items()},
                 "result_amounts": {},
             }
+            # Fetch per-contact detail for aging reports
+            from backend.routes.reports import _build_aging_detail
+            aging_detail = _build_aging_detail(g.session, acct_type, as_of)
+            report_data["aging_detail"] = aging_detail
             if as_of:
                 date_range = f"As of {as_of.strftime('%b %d, %Y')}"
 

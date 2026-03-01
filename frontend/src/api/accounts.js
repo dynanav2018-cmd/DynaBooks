@@ -1,7 +1,12 @@
 import { apiFetch } from './client'
 
-export const fetchAccounts = (type) =>
-  apiFetch(`/accounts${type ? `?type=${encodeURIComponent(type)}` : ''}`)
+export const fetchAccounts = (type, category) => {
+  const params = new URLSearchParams()
+  if (type) params.set('type', type)
+  if (category) params.set('category', category)
+  const qs = params.toString()
+  return apiFetch(`/accounts${qs ? `?${qs}` : ''}`)
+}
 
 export const createAccount = (data) =>
   apiFetch('/accounts', { method: 'POST', body: data })

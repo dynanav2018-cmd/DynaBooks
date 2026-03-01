@@ -25,10 +25,10 @@ export default function AccountList() {
   const toast = useToast()
 
   const columns = [
-    { key: 'account_code', label: 'Code' },
-    { key: 'name', label: 'Name' },
-    { key: 'account_type', label: 'Type' },
-    { key: 'description', label: 'Description' },
+    { key: 'account_number', label: 'Account #' },
+    { key: 'name', label: 'Account Name' },
+    { key: 'type_group', label: 'Type' },
+    { key: 'category', label: 'Category' },
     {
       key: 'actions',
       label: '',

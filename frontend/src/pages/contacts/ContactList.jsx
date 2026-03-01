@@ -19,7 +19,8 @@ const tabs = [
 
 const emptyForm = {
   name: '', contact_type: 'client', email: '', phone: '',
-  address_line_1: '', address_line_2: '', country: 'CA',
+  address_line_1: '', address_line_2: '', city: '', province_state: '',
+  postal_code: '', country: 'CA',
   tax_number: '', payment_terms_days: 30, notes: '',
 }
 
@@ -73,6 +74,9 @@ export default function ContactList() {
       phone: contact.phone || '',
       address_line_1: contact.address_line_1 || '',
       address_line_2: contact.address_line_2 || '',
+      city: contact.city || '',
+      province_state: contact.province_state || '',
+      postal_code: contact.postal_code || '',
       country: contact.country || 'CA',
       tax_number: contact.tax_number || '',
       payment_terms_days: contact.payment_terms_days || 30,
@@ -161,6 +165,15 @@ export default function ContactList() {
             </FormField>
             <FormField label="Address Line 2">
               <Input value={form.address_line_2} onChange={setField('address_line_2')} />
+            </FormField>
+            <FormField label="City">
+              <Input value={form.city} onChange={setField('city')} />
+            </FormField>
+            <FormField label="Province / State">
+              <Input value={form.province_state} onChange={setField('province_state')} />
+            </FormField>
+            <FormField label="Postal Code">
+              <Input value={form.postal_code} onChange={setField('postal_code')} />
             </FormField>
             <FormField label="Country">
               <Input value={form.country} onChange={setField('country')} />

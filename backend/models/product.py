@@ -16,7 +16,9 @@ class Product(CustomBase):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_price: Mapped[Decimal] = mapped_column(Numeric(13, 4), default=0)
-    revenue_account_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    product_type: Mapped[str] = mapped_column(String(20), default="product")
+    revenue_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expense_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tax_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(

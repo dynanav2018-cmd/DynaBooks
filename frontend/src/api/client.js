@@ -10,12 +10,26 @@ export class ApiError extends Error {
 
 export async function apiFetch(endpoint, options = {}) {
   const url = `${BASE}${endpoint}`
-  const config = {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+  const headers = { ...options.headers }
+
+  // Add company header if set
+  const company = localStorage.getItem('currentCompany')
+  if (company) {
+    headers['X-Company'] = company
   }
 
-  if (config.body && typeof config.body === 'object' && !(config.body instanceof Blob)) {
+  // Don't set Content-Type for FormData (browser sets boundary automatically)
+  const isFormData = options.body instanceof FormData
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  const config = {
+    ...options,
+    headers,
+  }
+
+  if (config.body && typeof config.body === 'object' && !isFormData && !(config.body instanceof Blob)) {
     config.body = JSON.stringify(config.body)
   }
 

@@ -2,3 +2,6 @@ python-accounting==1.0.0
 flask>=3.0
 xhtml2pdf>=0.2.17
 jinja2>=3.1
+pyinstaller>=6.0
+pystray>=0.19
+Pillow>=10.0
