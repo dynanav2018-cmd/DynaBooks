@@ -3,98 +3,400 @@
 <head>
 <meta charset="utf-8">
 <style>
-  @page { size: letter; margin: 2cm; }
-  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #333; }
-  .header { text-align: center; margin-bottom: 30px; }
-  .company-name { font-size: 18px; font-weight: bold; color: #1B3A5C; }
-  .report-title { font-size: 16px; color: #2E75B6; margin-top: 4px; }
-  .date-range { font-size: 10px; color: #666; margin-top: 4px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  thead th { background-color: #1B3A5C; color: white; padding: 6px 10px; text-align: left; font-size: 10px; text-transform: uppercase; }
-  thead th.right { text-align: right; }
-  tbody td { padding: 5px 10px; border-bottom: 1px solid #eee; }
-  tbody td.right { text-align: right; }
-  .section-header { background-color: #f0f4f8; font-weight: bold; }
-  .total-row td { border-top: 2px solid #1B3A5C; font-weight: bold; font-size: 12px; }
-  .footer { margin-top: 30px; text-align: center; font-size: 9px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+  @page { size: letter; margin: 2cm 1.5cm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 10px; color: #333; }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 10px; }
+  .company-name { font-size: 20px; font-weight: bold; color: #8B1A1A; }
+  .company-address { font-size: 10px; font-style: italic; color: #333; line-height: 1.4; }
+  .report-title { font-size: 18px; font-weight: bold; color: #333; margin-top: 16px; }
+  .date-range { font-size: 16px; font-weight: bold; color: #333; margin-top: 8px; }
+  .print-info { text-align: left; font-size: 9px; font-weight: bold; color: #333; margin-top: 8px; }
+  .blue-rule { border: none; border-top: 2px solid #2E75B6; margin: 8px 0 16px 0; }
+
+  /* ── Report Table ── */
+  .report-table { width: 100%; border-collapse: collapse; }
+  .report-table td { padding: 1px 0; vertical-align: top; }
+
+  /* Label column */
+  .col-label { width: 50%; text-align: left; }
+
+  /* Amount columns */
+  .col-amt1 { width: 16%; text-align: right; padding-right: 8px; }
+  .col-amt2 { width: 17%; text-align: right; padding-right: 8px; }
+  .col-amt3 { width: 17%; text-align: right; padding-right: 0; }
+
+  /* Indentation */
+  .indent-0 { padding-left: 0; }
+  .indent-1 { padding-left: 20px; }
+  .indent-2 { padding-left: 40px; }
+  .indent-3 { padding-left: 60px; }
+
+  /* Formatting */
+  .section-title { font-weight: bold; padding-top: 6px; }
+  .subtotal { font-weight: bold; }
+  .grand-total { font-weight: bold; }
+  .underline { border-bottom: 1px solid #333; }
+  .double-underline { border-bottom: 3px double #333; }
+  .spacer td { height: 8px; }
+
+  /* ── Aging Detail (unchanged) ── */
+  .aging-section { margin-top: 30px; }
+  .aging-section h3 { font-size: 14px; color: #1B3A5C; margin-bottom: 10px; }
+  .aging-contact-header { font-size: 12px; font-weight: bold; color: #2E75B6; padding: 4px 0; border-bottom: 1px solid #2E75B6; }
+  .aging-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+  .aging-table th { background-color: #1B3A5C; color: white; padding: 4px 8px; text-align: left; font-size: 9px; text-transform: uppercase; }
+  .aging-table th.right { text-align: right; }
+  .aging-table td { padding: 3px 8px; border-bottom: 1px solid #eee; font-size: 9px; }
+  .aging-table td.right { text-align: right; }
+
+  .footer { margin-top: 30px; text-align: center; font-size: 8px; color: #999; border-top: 1px solid #ddd; padding-top: 8px; }
 </style>
 </head>
 <body>
+
+  <!-- ═══ HEADER ═══ -->
   <div class="header">
     {% if logo_base64 %}
-    <img src="{{ logo_base64 }}" style="max-height: 60px; max-width: 200px; margin-bottom: 6px;" />
-    <br/>
+    <img src="{{ logo_base64 }}" style="max-height: 50px; max-width: 180px; margin-bottom: 4px;" /><br/>
     {% endif %}
     <div class="company-name">{{ company.name }}</div>
+    {% if company_info %}
+    <div class="company-address">
+      {% if company_info.address_line_1 %}{{ company_info.address_line_1 }}<br/>{% endif %}
+      {% if company_info.address_line_2 %}{{ company_info.address_line_2 }}<br/>{% endif %}
+      {% if company_info.city %}{{ company_info.city }}{% if company_info.province_state %}, {{ company_info.province_state }}{% endif %}{% endif %}
+      {% if company_info.postal_code %}<br/>{{ company_info.postal_code }}{% endif %}
+    </div>
+    {% endif %}
     <div class="report-title">{{ report_title }}</div>
     <div class="date-range">{{ date_range }}</div>
   </div>
+  <div class="print-info">{{ print_date }}<br/>{{ print_time }}</div>
+  <hr class="blue-rule" />
 
-  {% if balances %}
-  <table>
-    <thead>
-      <tr>
-        <th>Category</th>
-        <th class="right">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for key, value in balances.items() %}
-        {% if value is mapping %}
-          <tr class="section-header">
-            <td colspan="2">{{ key }}</td>
-          </tr>
-          {% for subkey, subval in value.items() %}
-          <tr>
-            <td style="padding-left: 25px;">{{ subkey }}</td>
-            <td class="right">
-              {% if subval is number %} ${{ '%.2f' | format(subval) }}
-              {% else %} {{ subval }}
-              {% endif %}
-            </td>
-          </tr>
+  {# ═══ MACROS ═══ #}
+  {% macro fmt(val) -%}
+    {%- if val is number -%}
+      {%- if val < 0 -%}(${{ '{:,.2f}'.format(val | abs) }}){%- else -%}${{ '{:,.2f}'.format(val) }}{%- endif -%}
+    {%- else -%}{{ val }}{%- endif -%}
+  {%- endmacro %}
+
+  {% macro row(label, indent=0, amt1='', amt2='', amt3='', bold=false, cls='') %}
+  <tr{% if cls %} class="{{ cls }}"{% endif %}>
+    <td class="col-label indent-{{ indent }}" {% if bold %}style="font-weight:bold;"{% endif %}>{{ label }}</td>
+    <td class="col-amt1">{% if amt1 != '' %}<span{% if bold %} style="font-weight:bold;"{% endif %}>{{ fmt(amt1) }}</span>{% endif %}</td>
+    <td class="col-amt2">{% if amt2 != '' %}<span{% if bold %} style="font-weight:bold;"{% endif %}>{{ fmt(amt2) }}</span>{% endif %}</td>
+    <td class="col-amt3">{% if amt3 != '' %}<span{% if bold %} style="font-weight:bold;"{% endif %}>{{ fmt(amt3) }}</span>{% endif %}</td>
+  </tr>
+  {% endmacro %}
+
+  {% macro underline_row(col=3) %}
+  <tr>
+    <td></td>
+    <td class="col-amt1">{% if col == 1 %}<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>{% endif %}</td>
+    <td class="col-amt2">{% if col == 2 %}<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>{% endif %}</td>
+    <td class="col-amt3">{% if col == 3 %}<span class="underline">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>{% endif %}</td>
+  </tr>
+  {% endmacro %}
+
+  {% macro spacer() %}
+  <tr class="spacer"><td colspan="4"></td></tr>
+  {% endmacro %}
+
+  <!-- ═══ INCOME STATEMENT ═══ -->
+  {% if report_type == 'income-statement' %}
+  <table class="report-table">
+    <colgroup>
+      <col style="width:50%">
+      <col style="width:16%">
+      <col style="width:17%">
+      <col style="width:17%">
+    </colgroup>
+
+    {# ── Income ── #}
+    {{ row('Income', 0, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key in ('Operating Revenue', 'Non Operating Revenue') and category_key == 'Operating Revenue' %}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 1, amt1=acct_amt) }}
           {% endfor %}
-        {% else %}
-        <tr>
-          <td>{{ key }}</td>
-          <td class="right">
-            {% if value is number %} ${{ '%.2f' | format(value) }}
-            {% else %} {{ value }}
-            {% endif %}
-          </td>
-        </tr>
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% if totals.get('Operating Revenue') is not none %}
+      {{ underline_row(1) }}
+      {{ row('Total Income', 0, amt3=totals['Operating Revenue'], bold=true) }}
+    {% endif %}
+
+    {{ spacer() }}
+
+    {# ── Cost of Sales ── #}
+    {{ row('Cost of Sales', 0, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key == 'Direct Expense' %}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 1, amt1=acct_amt) }}
+          {% endfor %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% if totals.get('Direct Expense') is not none %}
+      {{ underline_row(1) }}
+      {{ row('Total Cost of Sales', 0, amt3=totals['Direct Expense'], bold=true) }}
+    {% endif %}
+
+    {{ spacer() }}
+
+    {# ── Gross Profit ── #}
+    {% if result_amounts.get('Gross Profit') is not none %}
+      {{ row('Gross Profit', 0, amt3=result_amounts['Gross Profit'], bold=true) }}
+      {{ spacer() }}
+    {% endif %}
+
+    {# ── Expenses ── #}
+    {{ row('Expenses', 0, bold=true) }}
+    {% set expense_types = ['Operating Expense', 'Overhead Expense', 'Other Expense', 'Reconciliation'] %}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key in expense_types %}
+        {{ row(category_key, 1, bold=true) }}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 2, amt1=acct_amt) }}
+          {% endfor %}
+        {% endif %}
+        {% if totals.get(category_key) is not none %}
+          {{ underline_row(1) }}
+          {{ row('Total ' + category_key, 1, amt2=totals[category_key], bold=true) }}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% if result_amounts.get('Total Expenses') is not none %}
+      {{ row('Total Expenses', 0, amt3=result_amounts['Total Expenses'], bold=true) }}
+    {% elif totals.get('Operating Expense') is not none %}
+      {# fallback: sum expense totals #}
+      {% set ns = namespace(total=0) %}
+      {% for et in expense_types %}
+        {% if totals.get(et) is not none %}
+          {% set ns.total = ns.total + totals[et] %}
         {% endif %}
       {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
+      {{ underline_row(3) }}
+      {{ row('Total Expenses', 0, amt3=ns.total, bold=true) }}
+    {% endif %}
 
-  {% if result_amounts %}
-  <table style="margin-top: 20px;">
-    <tbody>
-      {% for key, value in result_amounts.items() %}
-      <tr class="total-row">
-        <td>{{ key }}</td>
-        <td class="right">
-          {% if value is number %} ${{ '%.2f' | format(value) }}
-          {% else %} {{ value }}
+    {{ spacer() }}
+
+    {# ── Operating Profit ── #}
+    {% if result_amounts.get('Operating Profit') is not none %}
+      {{ underline_row(3) }}
+      {{ row('Operating Profit', 0, amt3=result_amounts['Operating Profit'], bold=true) }}
+      {{ spacer() }}
+    {% endif %}
+
+    {# ── Other Income ── #}
+    {{ row('Other Income', 0, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key == 'Non Operating Revenue' %}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 1, amt1=acct_amt) }}
+          {% endfor %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+
+    {{ spacer() }}
+
+    {# ── Other Expenses ── #}
+    {{ row('Other Expenses', 0, bold=true) }}
+
+    {{ spacer() }}
+
+    {# ── Net Profit / (Loss) ── #}
+    {% if result_amounts.get('Net Profit') is not none %}
+      {{ underline_row(3) }}
+      {{ row('Net Profit / (Loss)', 0, amt3=result_amounts['Net Profit'], bold=true) }}
+      {{ underline_row(3) }}
+    {% endif %}
+
+    {# ── Fallback for any result amounts not yet shown ── #}
+    {% for key, val in result_amounts.items() %}
+      {% if key not in ('Gross Profit', 'Total Expenses', 'Operating Profit', 'Net Profit') %}
+        {{ row(key, 0, amt3=val, bold=true) }}
+      {% endif %}
+    {% endfor %}
+  </table>
+
+  <!-- ═══ BALANCE SHEET ═══ -->
+  {% elif report_type == 'balance-sheet' %}
+  <table class="report-table">
+    <colgroup>
+      <col style="width:50%">
+      <col style="width:16%">
+      <col style="width:17%">
+      <col style="width:17%">
+    </colgroup>
+
+    {# ── Assets ── #}
+    {{ row('Assets', 0, bold=true) }}
+    {% set asset_types = ['Bank', 'Receivable', 'Current Asset', 'Non Current Asset', 'Inventory', 'Contra Asset'] %}
+    {{ row('Current Assets', 1, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key in asset_types %}
+        {% if category_val is mapping %}
+          {% if category_key == 'Bank' %}
+            {{ row('Cash On Hand', 2, bold=true) }}
+            {% for acct_name, acct_amt in category_val.items() %}
+              {{ row(acct_name, 3, amt1=acct_amt) }}
+            {% endfor %}
+            {% if totals.get(category_key) is not none %}
+              {{ underline_row(1) }}
+              {{ row('Total Cash On Hand', 2, amt2=totals[category_key], bold=true) }}
+            {% endif %}
+          {% else %}
+            {% for acct_name, acct_amt in category_val.items() %}
+              {{ row(acct_name, 2, amt2=acct_amt) }}
+            {% endfor %}
           {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {# Total Current Assets #}
+    {% set ns = namespace(asset_total=0) %}
+    {% for at in asset_types %}
+      {% if totals.get(at) is not none %}
+        {% set ns.asset_total = ns.asset_total + totals[at] %}
+      {% endif %}
+    {% endfor %}
+    {{ underline_row(2) }}
+    {{ row('Total Current Assets', 1, amt2=ns.asset_total, bold=true) }}
+    {{ row('Total Assets', 0, amt3=ns.asset_total, bold=true) }}
+    {{ underline_row(3) }}
 
+    {{ spacer() }}
+    {{ spacer() }}
+
+    {# ── Liabilities ── #}
+    {{ row('Liabilities', 0, bold=true) }}
+    {% set liability_types = ['Payable', 'Control', 'Current Liability', 'Non Current Liability'] %}
+    {{ row('Current Liabilities', 1, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key in liability_types %}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 2, amt1=acct_amt) }}
+          {% endfor %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% set ns = namespace(liab_total=0) %}
+    {% for lt in liability_types %}
+      {% if totals.get(lt) is not none %}
+        {% set ns.liab_total = ns.liab_total + totals[lt] %}
+      {% endif %}
+    {% endfor %}
+    {{ underline_row(1) }}
+    {{ row('Total Current Liabilities', 1, amt2=ns.liab_total, bold=true) }}
+    {{ row('Total Liabilities', 0, amt3=ns.liab_total, bold=true) }}
+    {{ underline_row(3) }}
+
+    {{ spacer() }}
+
+    {# ── Equity ── #}
+    {{ row('Equity', 0, bold=true) }}
+    {% for category_key, category_val in balances.items() %}
+      {% if category_key == 'Equity' %}
+        {% if category_val is mapping %}
+          {% for acct_name, acct_amt in category_val.items() %}
+            {{ row(acct_name, 2, amt1=acct_amt) }}
+          {% endfor %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% if result_amounts.get('Retained Earnings') is not none %}
+      {{ row('Retained Earnings', 1, amt2=result_amounts['Retained Earnings'], bold=true) }}
+    {% endif %}
+    {% if result_amounts.get('Current Year Earnings') is not none %}
+      {{ row('Current Year Earnings', 1, amt2=result_amounts['Current Year Earnings']) }}
+    {% endif %}
+    {% if result_amounts.get('Net Profit') is not none %}
+      {{ row('Current Year Earnings', 1, amt2=result_amounts['Net Profit']) }}
+    {% endif %}
+    {# Total Equity #}
+    {% set equity_total = totals.get('Equity', 0) %}
+    {% if result_amounts.get('Retained Earnings') is not none %}
+      {% set equity_total = equity_total + result_amounts['Retained Earnings'] %}
+    {% endif %}
+    {% if result_amounts.get('Current Year Earnings') is not none %}
+      {% set equity_total = equity_total + result_amounts['Current Year Earnings'] %}
+    {% elif result_amounts.get('Net Profit') is not none %}
+      {% set equity_total = equity_total + result_amounts['Net Profit'] %}
+    {% endif %}
+    {{ underline_row(2) }}
+    {{ row('Total Equity', 0, amt3=equity_total, bold=true) }}
+
+    {{ spacer() }}
+
+    {# ── Total Liabilities & Equity ── #}
+    {% set total_le = ns.liab_total + equity_total %}
+    {{ underline_row(3) }}
+    {{ row('Total Liability &amp; Equity', 0, amt3=total_le, bold=true) }}
+    {{ underline_row(3) }}
+
+    {# ── Fallback for result amounts not yet shown ── #}
+    {% for key, val in result_amounts.items() %}
+      {% if key not in ('Retained Earnings', 'Current Year Earnings', 'Net Profit', 'Total Assets', 'Total Liabilities', 'Total Equity') %}
+        {{ spacer() }}
+        {{ row(key, 0, amt3=val, bold=true) }}
+      {% endif %}
+    {% endfor %}
+  </table>
+
+  <!-- ═══ GENERIC / AGING FALLBACK ═══ -->
+  {% else %}
+  <table class="report-table">
+    <colgroup>
+      <col style="width:50%">
+      <col style="width:16%">
+      <col style="width:17%">
+      <col style="width:17%">
+    </colgroup>
+    {% for key, value in balances.items() %}
+      {% if value is mapping %}
+        {{ row(key, 0, bold=true) }}
+        {% for subkey, subval in value.items() %}
+          {% if subval is number %}
+            {{ row(subkey, 1, amt2=subval) }}
+          {% endif %}
+        {% endfor %}
+        {{ spacer() }}
+      {% else %}
+        {% if value is number %}
+          {{ row(key, 0, amt3=value) }}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+
+    {% for key, value in result_amounts.items() %}
+      {{ underline_row(3) }}
+      {{ row(key, 0, amt3=value, bold=true) }}
+    {% endfor %}
+  </table>
+
+  {# Aging detail section #}
   {% if aging_detail and aging_detail.contacts %}
-  <div style="margin-top: 30px;">
-    <h3 style="font-size: 14px; color: #1B3A5C; margin-bottom: 10px;">Detail by Contact</h3>
+  <div class="aging-section">
+    <h3>Detail by Contact</h3>
     {% for contact in aging_detail.contacts %}
     <div style="margin-bottom: 15px;">
-      <div style="font-size: 12px; font-weight: bold; color: #2E75B6; padding: 4px 0; border-bottom: 1px solid #2E75B6;">
+      <div class="aging-contact-header">
         {{ contact.contact_name }} &mdash; Outstanding: ${{ '%.2f' | format(contact.total_outstanding|float) }}
       </div>
-      <table>
+      <table class="aging-table">
         <thead>
           <tr>
             <th>Invoice/Bill #</th>
@@ -121,10 +423,10 @@
 
     {% if aging_detail.unassigned %}
     <div style="margin-bottom: 15px;">
-      <div style="font-size: 12px; font-weight: bold; color: #666; padding: 4px 0; border-bottom: 1px solid #999;">
+      <div class="aging-contact-header" style="color: #666; border-color: #999;">
         Unassigned &mdash; Outstanding: ${{ '%.2f' | format(aging_detail.unassigned.total_outstanding|float) }}
       </div>
-      <table>
+      <table class="aging-table">
         <thead>
           <tr>
             <th>Invoice/Bill #</th>
@@ -150,9 +452,11 @@
     {% endif %}
   </div>
   {% endif %}
+  {% endif %}
 
   <div class="footer">
     {{ company.name }} &mdash; Generated by DynaBooks
   </div>
+
 </body>
 </html>

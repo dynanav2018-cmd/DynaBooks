@@ -111,7 +111,7 @@ def _parse_date(param_name):
 
 
 REPORT_TITLES = {
-    "income-statement": "Income Statement",
+    "income-statement": "Profit & Loss Statement",
     "balance-sheet": "Balance Sheet",
     "aging-receivables": "Aging Schedule - Receivables",
     "aging-payables": "Aging Schedule - Payables",
@@ -140,7 +140,7 @@ def report_pdf(report_type):
                 report.balances, report.accounts, report.totals, report.result_amounts
             )
             if start_date and end_date:
-                date_range = f"{start_date.strftime('%b %d, %Y')} - {end_date.strftime('%b %d, %Y')}"
+                date_range = f"{start_date.strftime('%B %Y')}-{end_date.strftime('%B %Y')}"
 
         elif report_type == "balance-sheet":
             as_of, err = _parse_date("as_of")
@@ -151,7 +151,7 @@ def report_pdf(report_type):
                 report.balances, report.accounts, report.totals, report.result_amounts
             )
             if as_of:
-                date_range = f"As of {as_of.strftime('%b %d, %Y')}"
+                date_range = f"As of {as_of.strftime('%B %d, %Y')}"
 
         elif report_type in ("aging-receivables", "aging-payables"):
             as_of, err = _parse_date("as_of")
@@ -177,7 +177,11 @@ def report_pdf(report_type):
     except Exception as e:
         return jsonify(error=str(e)), 400
 
-    pdf_bytes = render_report_pdf(title, report_data, company_data, date_range)
+    company_info = _get_company_info_data()
+    pdf_bytes = render_report_pdf(
+        title, report_data, company_data, date_range,
+        company_info=company_info, report_type=report_type,
+    )
     filename = f"{report_type}.pdf"
     return Response(
         pdf_bytes,

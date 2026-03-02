@@ -57,17 +57,27 @@ def render_invoice_pdf(invoice_data, company_data, contact=None, company_info=No
     return _html_to_pdf(html)
 
 
-def render_report_pdf(report_title, report_data, company_data, date_range=""):
+def render_report_pdf(
+    report_title, report_data, company_data, date_range="",
+    company_info=None, report_type="",
+):
     """Render a financial report as a PDF. Returns bytes."""
+    from datetime import datetime
+
     template = _jinja_env.get_template("report_pdf.html")
     html = template.render(
         report_title=report_title,
+        report_type=report_type,
         balances=report_data.get("balances", {}),
+        accounts=report_data.get("accounts", {}),
         totals=report_data.get("totals", {}),
         result_amounts=report_data.get("result_amounts", {}),
         aging_detail=report_data.get("aging_detail"),
         company=company_data,
+        company_info=company_info,
         date_range=date_range,
+        print_date=datetime.now().strftime("%m-%d-%y"),
+        print_time=datetime.now().strftime("%I:%M:%S %p").lstrip("0"),
         logo_base64=_load_logo_base64(),
     )
     return _html_to_pdf(html)
