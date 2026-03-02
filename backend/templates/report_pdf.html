@@ -105,6 +105,26 @@
   <tr class="spacer"><td colspan="4"></td></tr>
   {% endmacro %}
 
+  {# Render ALL accounts for a given type from account_listing, showing $0.00 for zero-balance #}
+  {% macro acct_lines(type_key, indent=1, col='amt1') %}
+    {% for acct in account_listing.get(type_key, []) %}
+      {% if col == 'amt1' %}
+        {{ row(acct.name, indent, amt1=acct.balance) }}
+      {% else %}
+        {{ row(acct.name, indent, amt2=acct.balance) }}
+      {% endif %}
+    {% endfor %}
+  {% endmacro %}
+
+  {# Sum all balances for a type from account_listing #}
+  {% macro type_total(type_key) -%}
+    {%- set ns = namespace(t=0) -%}
+    {%- for acct in account_listing.get(type_key, []) -%}
+      {%- set ns.t = ns.t + acct.balance -%}
+    {%- endfor -%}
+    {{ ns.t }}
+  {%- endmacro %}
+
   <!-- ═══ INCOME STATEMENT ═══ -->
   {% if report_type == 'income-statement' %}
   <table class="report-table">
@@ -117,36 +137,22 @@
 
     {# ── Income ── #}
     {{ row('Income', 0, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key in ('Operating Revenue', 'Non Operating Revenue') and category_key == 'Operating Revenue' %}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 1, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-    {% if totals.get('Operating Revenue') is not none %}
+    {{ acct_lines('Operating Revenue', 1, 'amt1') }}
+    {% set income_total = type_total('Operating Revenue')|float %}
+    {% if account_listing.get('Operating Revenue') %}
       {{ underline_row(1) }}
-      {{ row('Total Income', 0, amt3=totals['Operating Revenue'], bold=true) }}
     {% endif %}
+    {{ row('Total Income', 0, amt3=income_total, bold=true) }}
 
     {{ spacer() }}
 
     {# ── Cost of Sales ── #}
     {{ row('Cost of Sales', 0, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key == 'Direct Expense' %}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 1, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
-    {% if totals.get('Direct Expense') is not none %}
+    {{ acct_lines('Direct Expense', 1, 'amt1') }}
+    {% set cogs_total = type_total('Direct Expense')|float %}
+    {% if account_listing.get('Direct Expense') %}
       {{ underline_row(1) }}
-      {{ row('Total Cost of Sales', 0, amt3=totals['Direct Expense'], bold=true) }}
+      {{ row('Total Cost of Sales', 0, amt3=cogs_total, bold=true) }}
     {% endif %}
 
     {{ spacer() }}
@@ -154,39 +160,27 @@
     {# ── Gross Profit ── #}
     {% if result_amounts.get('Gross Profit') is not none %}
       {{ row('Gross Profit', 0, amt3=result_amounts['Gross Profit'], bold=true) }}
-      {{ spacer() }}
+    {% else %}
+      {{ row('Gross Profit', 0, amt3=income_total - cogs_total, bold=true) }}
     {% endif %}
+
+    {{ spacer() }}
 
     {# ── Expenses ── #}
     {{ row('Expenses', 0, bold=true) }}
     {% set expense_types = ['Operating Expense', 'Overhead Expense', 'Other Expense', 'Reconciliation'] %}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key in expense_types %}
-        {{ row(category_key, 1, bold=true) }}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 2, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
-        {% if totals.get(category_key) is not none %}
-          {{ underline_row(1) }}
-          {{ row('Total ' + category_key, 1, amt2=totals[category_key], bold=true) }}
-        {% endif %}
+    {% set ns = namespace(expense_grand=0) %}
+    {% for etype in expense_types %}
+      {% if account_listing.get(etype) %}
+        {{ row(etype, 1, bold=true) }}
+        {{ acct_lines(etype, 2, 'amt1') }}
+        {% set et = type_total(etype)|float %}
+        {% set ns.expense_grand = ns.expense_grand + et %}
+        {{ underline_row(1) }}
+        {{ row('Total ' + etype, 1, amt2=et, bold=true) }}
       {% endif %}
     {% endfor %}
-    {% if result_amounts.get('Total Expenses') is not none %}
-      {{ row('Total Expenses', 0, amt3=result_amounts['Total Expenses'], bold=true) }}
-    {% elif totals.get('Operating Expense') is not none %}
-      {# fallback: sum expense totals #}
-      {% set ns = namespace(total=0) %}
-      {% for et in expense_types %}
-        {% if totals.get(et) is not none %}
-          {% set ns.total = ns.total + totals[et] %}
-        {% endif %}
-      {% endfor %}
-      {{ underline_row(3) }}
-      {{ row('Total Expenses', 0, amt3=ns.total, bold=true) }}
-    {% endif %}
+    {{ row('Total Expenses', 0, amt3=ns.expense_grand, bold=true) }}
 
     {{ spacer() }}
 
@@ -194,20 +188,16 @@
     {% if result_amounts.get('Operating Profit') is not none %}
       {{ underline_row(3) }}
       {{ row('Operating Profit', 0, amt3=result_amounts['Operating Profit'], bold=true) }}
-      {{ spacer() }}
+    {% else %}
+      {{ underline_row(3) }}
+      {{ row('Operating Profit', 0, amt3=income_total - cogs_total - ns.expense_grand, bold=true) }}
     {% endif %}
+
+    {{ spacer() }}
 
     {# ── Other Income ── #}
     {{ row('Other Income', 0, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key == 'Non Operating Revenue' %}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 1, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
+    {{ acct_lines('Non Operating Revenue', 1, 'amt1') }}
 
     {{ spacer() }}
 
@@ -245,32 +235,29 @@
     {{ row('Assets', 0, bold=true) }}
     {% set asset_types = ['Bank', 'Receivable', 'Current Asset', 'Non Current Asset', 'Inventory', 'Contra Asset'] %}
     {{ row('Current Assets', 1, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key in asset_types %}
-        {% if category_val is mapping %}
-          {% if category_key == 'Bank' %}
-            {{ row('Cash On Hand', 2, bold=true) }}
-            {% for acct_name, acct_amt in category_val.items() %}
-              {{ row(acct_name, 3, amt1=acct_amt) }}
-            {% endfor %}
-            {% if totals.get(category_key) is not none %}
-              {{ underline_row(1) }}
-              {{ row('Total Cash On Hand', 2, amt2=totals[category_key], bold=true) }}
-            {% endif %}
-          {% else %}
-            {% for acct_name, acct_amt in category_val.items() %}
-              {{ row(acct_name, 2, amt2=acct_amt) }}
-            {% endfor %}
-          {% endif %}
-        {% endif %}
+
+    {# Bank accounts grouped as "Cash On Hand" #}
+    {% if account_listing.get('Bank') %}
+      {{ row('Cash On Hand', 2, bold=true) }}
+      {{ acct_lines('Bank', 3, 'amt1') }}
+      {% set bank_total = type_total('Bank')|float %}
+      {{ underline_row(1) }}
+      {{ row('Total Cash On Hand', 2, amt2=bank_total, bold=true) }}
+    {% endif %}
+
+    {# Other asset types #}
+    {% for atype in asset_types %}
+      {% if atype != 'Bank' and account_listing.get(atype) %}
+        {% for acct in account_listing[atype] %}
+          {{ row(acct.name, 2, amt2=acct.balance) }}
+        {% endfor %}
       {% endif %}
     {% endfor %}
+
     {# Total Current Assets #}
     {% set ns = namespace(asset_total=0) %}
     {% for at in asset_types %}
-      {% if totals.get(at) is not none %}
-        {% set ns.asset_total = ns.asset_total + totals[at] %}
-      {% endif %}
+      {% set ns.asset_total = ns.asset_total + type_total(at)|float %}
     {% endfor %}
     {{ underline_row(2) }}
     {{ row('Total Current Assets', 1, amt2=ns.asset_total, bold=true) }}
@@ -284,20 +271,14 @@
     {{ row('Liabilities', 0, bold=true) }}
     {% set liability_types = ['Payable', 'Control', 'Current Liability', 'Non Current Liability'] %}
     {{ row('Current Liabilities', 1, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key in liability_types %}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 2, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
+    {% for ltype in liability_types %}
+      {% if account_listing.get(ltype) %}
+        {{ acct_lines(ltype, 2, 'amt1') }}
       {% endif %}
     {% endfor %}
     {% set ns = namespace(liab_total=0) %}
     {% for lt in liability_types %}
-      {% if totals.get(lt) is not none %}
-        {% set ns.liab_total = ns.liab_total + totals[lt] %}
-      {% endif %}
+      {% set ns.liab_total = ns.liab_total + type_total(lt)|float %}
     {% endfor %}
     {{ underline_row(1) }}
     {{ row('Total Current Liabilities', 1, amt2=ns.liab_total, bold=true) }}
@@ -308,26 +289,17 @@
 
     {# ── Equity ── #}
     {{ row('Equity', 0, bold=true) }}
-    {% for category_key, category_val in balances.items() %}
-      {% if category_key == 'Equity' %}
-        {% if category_val is mapping %}
-          {% for acct_name, acct_amt in category_val.items() %}
-            {{ row(acct_name, 2, amt1=acct_amt) }}
-          {% endfor %}
-        {% endif %}
-      {% endif %}
-    {% endfor %}
+    {{ acct_lines('Equity', 2, 'amt1') }}
     {% if result_amounts.get('Retained Earnings') is not none %}
       {{ row('Retained Earnings', 1, amt2=result_amounts['Retained Earnings'], bold=true) }}
     {% endif %}
     {% if result_amounts.get('Current Year Earnings') is not none %}
       {{ row('Current Year Earnings', 1, amt2=result_amounts['Current Year Earnings']) }}
-    {% endif %}
-    {% if result_amounts.get('Net Profit') is not none %}
+    {% elif result_amounts.get('Net Profit') is not none %}
       {{ row('Current Year Earnings', 1, amt2=result_amounts['Net Profit']) }}
     {% endif %}
     {# Total Equity #}
-    {% set equity_total = totals.get('Equity', 0) %}
+    {% set equity_total = type_total('Equity')|float %}
     {% if result_amounts.get('Retained Earnings') is not none %}
       {% set equity_total = equity_total + result_amounts['Retained Earnings'] %}
     {% endif %}

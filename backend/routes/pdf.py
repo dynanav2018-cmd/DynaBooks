@@ -110,6 +110,48 @@ def _parse_date(param_name):
         return None, (jsonify(error=f"Invalid {param_name} format"), 400)
 
 
+def _build_account_listing(session, report):
+    """Build a complete account listing grouped by type, with balances.
+
+    Returns a dict like::
+
+        {"Operating Expense": [{"name": "Rent", "balance": 500.0}, ...], ...}
+
+    Every account in the Chart of Accounts is included, even if the
+    balance is zero, so the PDF shows all line items.
+    """
+    entity_id = session.entity.id
+    all_accounts = (
+        session.query(Account)
+        .filter(Account.entity_id == entity_id)
+        .order_by(Account.account_code)
+        .all()
+    )
+
+    # Build a lookup: account_type_value -> {account_id: balance}
+    balance_lookup: dict[str, dict[int, float]] = {}
+    if hasattr(report, "balances") and report.balances:
+        for acct_type, type_balances in report.balances.items():
+            type_str = acct_type.value if hasattr(acct_type, "value") else str(acct_type)
+            balance_lookup[type_str] = {}
+            if isinstance(type_balances, dict):
+                for acct_obj, amt in type_balances.items():
+                    if hasattr(acct_obj, "id"):
+                        balance_lookup[type_str][acct_obj.id] = float(amt)
+
+    listing: dict[str, list[dict]] = {}
+    for acct in all_accounts:
+        type_str = acct.account_type.value if acct.account_type else None
+        if not type_str:
+            continue
+        if type_str not in listing:
+            listing[type_str] = []
+        balance = balance_lookup.get(type_str, {}).get(acct.id, 0.0)
+        listing[type_str].append({"name": acct.name, "balance": balance})
+
+    return listing
+
+
 REPORT_TITLES = {
     "income-statement": "Profit & Loss Statement",
     "balance-sheet": "Balance Sheet",
@@ -139,6 +181,9 @@ def report_pdf(report_type):
             report_data = serialize_report_section(
                 report.balances, report.accounts, report.totals, report.result_amounts
             )
+            report_data["account_listing"] = _build_account_listing(
+                g.session, report
+            )
             if start_date and end_date:
                 date_range = f"{start_date.strftime('%B %Y')}-{end_date.strftime('%B %Y')}"
 
@@ -149,6 +194,9 @@ def report_pdf(report_type):
             report = BalanceSheet(g.session, as_of)
             report_data = serialize_report_section(
                 report.balances, report.accounts, report.totals, report.result_amounts
+            )
+            report_data["account_listing"] = _build_account_listing(
+                g.session, report
             )
             if as_of:
                 date_range = f"As of {as_of.strftime('%B %d, %Y')}"

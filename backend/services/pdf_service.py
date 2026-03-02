@@ -72,6 +72,7 @@ def render_report_pdf(
         accounts=report_data.get("accounts", {}),
         totals=report_data.get("totals", {}),
         result_amounts=report_data.get("result_amounts", {}),
+        account_listing=report_data.get("account_listing", {}),
         aging_detail=report_data.get("aging_detail"),
         company=company_data,
         company_info=company_info,
