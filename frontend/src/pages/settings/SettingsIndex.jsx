@@ -12,6 +12,7 @@ import FormField, { Input, Select } from '../../components/shared/FormField'
 import DataTable from '../../components/shared/DataTable'
 import Modal from '../../components/shared/Modal'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import { useSettings } from '../../hooks/useSettings'
 
 const tabs = [
   { key: 'company', label: 'Company' },
@@ -27,11 +28,13 @@ function CompanySettings() {
     address_line_1: '', address_line_2: '', city: '',
     province_state: '', postal_code: '', country: '',
     phone: '', email: '',
+    allow_edit_posted: false,
   })
   const [saving, setSaving] = useState(false)
   const [logoPreview, setLogoPreview] = useState(null)
   const [logoKey, setLogoKey] = useState(0)
   const toast = useToast()
+  const { refreshSettings } = useSettings()
 
   useEffect(() => {
     if (company) {
@@ -47,6 +50,7 @@ function CompanySettings() {
         country: info.country || '',
         phone: info.phone || '',
         email: info.email || '',
+        allow_edit_posted: info.allow_edit_posted || false,
       })
     }
   }, [company])
@@ -57,6 +61,7 @@ function CompanySettings() {
       await updateCompany(form)
       toast.success('Company updated')
       refetch()
+      refreshSettings()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -131,6 +136,23 @@ function CompanySettings() {
           <Input type="email" value={form.email} onChange={sf('email')} />
         </FormField>
       </div>
+
+      <h3 className="text-sm font-semibold text-gray-700 mt-6 mb-3">Accounting Settings</h3>
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={form.allow_edit_posted}
+          onChange={(e) => setForm({ ...form, allow_edit_posted: e.target.checked })}
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+        />
+        <div>
+          <span className="text-sm font-medium text-gray-700">Allow editing posted transactions</span>
+          <p className="text-xs text-gray-500 mt-0.5">
+            When enabled, posted invoices, bills, and journal entries can be edited or deleted.
+            The transaction will be un-posted, modified, and can then be re-posted.
+          </p>
+        </div>
+      </label>
 
       <div className="mt-6">
         <Button onClick={handleSave} disabled={saving}>

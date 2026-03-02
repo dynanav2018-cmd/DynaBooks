@@ -7,12 +7,14 @@ import PageHeader from '../../components/shared/PageHeader'
 import Button from '../../components/shared/Button'
 import StatusBadge from '../../components/shared/StatusBadge'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import { useSettings } from '../../hooks/useSettings'
 
 export default function BillDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const toast = useToast()
   const { data: bill, loading, refetch } = useApi(() => fetchBill(id), [id])
+  const { allowEditPosted } = useSettings()
 
   const handlePost = async () => {
     try {
@@ -59,12 +61,14 @@ export default function BillDetail() {
           {bill.is_posted && (
             <Button variant="secondary" onClick={handleDownloadPdf}>Download PDF</Button>
           )}
-          {!bill.is_posted && (
+          {(!bill.is_posted || allowEditPosted) && (
             <>
               <Link to={`/bills/${id}/edit`}>
                 <Button variant="secondary">Edit</Button>
               </Link>
-              <Button onClick={handlePost}>Post Bill</Button>
+              {!bill.is_posted && (
+                <Button onClick={handlePost}>Post Bill</Button>
+              )}
               <Button variant="danger" onClick={handleDelete}>Delete</Button>
             </>
           )}

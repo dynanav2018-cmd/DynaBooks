@@ -1,6 +1,6 @@
 """Company address/contact info model."""
 
-from sqlalchemy import Integer, String
+from sqlalchemy import Boolean, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.models import CustomBase
@@ -19,3 +19,4 @@ class CompanyInfo(CustomBase):
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    allow_edit_posted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

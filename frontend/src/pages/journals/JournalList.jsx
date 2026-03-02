@@ -8,18 +8,16 @@ import PageHeader from '../../components/shared/PageHeader'
 import Button from '../../components/shared/Button'
 import StatusBadge from '../../components/shared/StatusBadge'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
+import { useSettings } from '../../hooks/useSettings'
 
 export default function JournalList() {
   const { data: journals, loading, refetch } = useApi(fetchJournals)
   const navigate = useNavigate()
   const toast = useToast()
+  const { allowEditPosted } = useSettings()
 
   const handleDelete = async (e, journal) => {
     e.stopPropagation()
-    if (journal.is_posted) {
-      toast.error('Cannot delete a posted journal entry')
-      return
-    }
     if (!confirm('Delete this journal entry?')) return
     try {
       await deleteJournal(journal.id)
@@ -60,7 +58,7 @@ export default function JournalList() {
       label: 'Actions',
       render: (_, row) => (
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {!row.is_posted && (
+          {(!row.is_posted || allowEditPosted) && (
             <>
               <Link
                 to={`/journals/${row.id}/edit`}
@@ -69,12 +67,14 @@ export default function JournalList() {
               >
                 Edit
               </Link>
-              <button
-                onClick={(e) => handlePost(e, row)}
-                className="px-2 py-1 text-xs bg-accent text-white rounded hover:bg-accent-dark"
-              >
-                Post
-              </button>
+              {!row.is_posted && (
+                <button
+                  onClick={(e) => handlePost(e, row)}
+                  className="px-2 py-1 text-xs bg-accent text-white rounded hover:bg-accent-dark"
+                >
+                  Post
+                </button>
+              )}
               <button
                 onClick={(e) => handleDelete(e, row)}
                 className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"

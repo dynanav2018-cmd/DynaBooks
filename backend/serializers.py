@@ -210,6 +210,7 @@ def serialize_company_info(info):
         "country": info.country,
         "phone": info.phone,
         "email": info.email,
+        "allow_edit_posted": info.allow_edit_posted,
     }
 
 

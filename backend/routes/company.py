@@ -18,6 +18,7 @@ MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 ADDRESS_FIELDS = [
     "address_line_1", "address_line_2", "city",
     "province_state", "postal_code", "country", "phone", "email",
+    "allow_edit_posted",
 ]
 
 

@@ -115,6 +115,13 @@ def run_migrations(engine):
                 )
             """))
 
+        # CompanyInfo: add allow_edit_posted column
+        if _table_exists(insp, "company_info"):
+            if not _column_exists(insp, "company_info", "allow_edit_posted"):
+                conn.execute(text(
+                    "ALTER TABLE company_info ADD COLUMN allow_edit_posted BOOLEAN NOT NULL DEFAULT 0"
+                ))
+
         # RecurringJournals table: create if missing
         if not _table_exists(insp, "recurring_journals"):
             conn.execute(text("""

@@ -9,10 +9,36 @@ from sqlalchemy import text
 from python_accounting.models import Account, LineItem, Tax, Transaction
 from python_accounting.transactions import ClientInvoice
 
+from backend.models.company_info import CompanyInfo
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import serialize_transaction
 
 bp = Blueprint("invoices", __name__, url_prefix="/api")
+
+
+def _check_and_unpost(session, transaction, transaction_id):
+    """If posted and allow_edit_posted is on, un-post via raw SQL."""
+    if not transaction.is_posted:
+        return None
+    info = session.query(CompanyInfo).filter(
+        CompanyInfo.entity_id == session.entity.id
+    ).first()
+    if not info or not info.allow_edit_posted:
+        return jsonify(error="Cannot modify a posted invoice"), 400
+    conn = session.connection()
+    ledger_ids = [r[0] for r in conn.execute(
+        text("SELECT id FROM ledger WHERE transaction_id = :tid"),
+        {"tid": transaction_id},
+    )]
+    if ledger_ids:
+        conn.execute(
+            text("DELETE FROM ledger WHERE transaction_id = :tid"),
+            {"tid": transaction_id},
+        )
+        for lid in ledger_ids:
+            conn.execute(text("DELETE FROM recyclable WHERE id = :id"), {"id": lid})
+    session.expire(transaction)
+    return None
 
 
 def _get_invoices(session):
@@ -131,8 +157,9 @@ def update_invoice(invoice_id):
     if not invoice:
         return jsonify(error="Invoice not found"), 404
 
-    if invoice.is_posted:
-        return jsonify(error="Cannot update a posted invoice"), 400
+    err = _check_and_unpost(g.session, invoice, invoice_id)
+    if err:
+        return err
 
     data = request.get_json()
     if not data:
@@ -232,8 +259,9 @@ def delete_invoice(invoice_id):
     if not invoice:
         return jsonify(error="Invoice not found"), 404
 
-    if invoice.is_posted:
-        return jsonify(error="Cannot delete a posted invoice"), 400
+    err = _check_and_unpost(g.session, invoice, invoice_id)
+    if err:
+        return err
 
     try:
         g.session.delete(invoice)

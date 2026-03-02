@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ToastProvider } from './hooks/useToast'
 import { CompanyProvider } from './hooks/useCompany'
+import { SettingsProvider } from './hooks/useSettings'
 import AppShell from './components/layout/AppShell'
 import Dashboard from './pages/Dashboard'
 import InvoiceList from './pages/invoices/InvoiceList'
@@ -22,6 +23,7 @@ import CompanySelector from './pages/company/CompanySelector'
 export default function App() {
   return (
     <CompanyProvider>
+      <SettingsProvider>
       <ToastProvider>
         <Routes>
           <Route path="companies" element={<CompanySelector />} />
@@ -49,6 +51,7 @@ export default function App() {
           </Route>
         </Routes>
       </ToastProvider>
+      </SettingsProvider>
     </CompanyProvider>
   )
 }
