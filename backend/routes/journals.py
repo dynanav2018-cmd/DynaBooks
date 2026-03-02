@@ -168,8 +168,18 @@ def update_journal(journal_id):
                 g.session.add(line)
                 g.session.flush()
 
+            # Recalculate amount from line items (sum of one side)
+            total_amount = main_amount + sum(
+                Decimal(str(li["amount"])) * Decimal(str(li.get("quantity", 1)))
+                for li in remaining
+                if li.get("credited") == main_credited
+            )
+            journal.amount = total_amount
+
             # Expire to pick up new line_items on next access
             g.session.expire(journal)
+            journal.amount = total_amount
+            journal.main_account_amount = main_amount
 
         # Auto-post if requested
         if data.get("post", False):

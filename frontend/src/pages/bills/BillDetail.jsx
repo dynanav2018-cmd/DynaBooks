@@ -77,10 +77,14 @@ export default function BillDetail() {
       </PageHeader>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
           <div>
             <p className="text-xs text-gray-500 uppercase font-medium">Status</p>
             <StatusBadge status={bill.is_posted ? 'Posted' : 'Draft'} />
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase font-medium">Supplier</p>
+            <p className="text-sm font-medium">{bill.contact_name || '—'}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 uppercase font-medium">Date</p>

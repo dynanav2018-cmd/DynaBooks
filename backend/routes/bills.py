@@ -10,6 +10,7 @@ from python_accounting.models import Account, LineItem, Transaction
 from python_accounting.transactions import SupplierBill
 
 from backend.models.company_info import CompanyInfo
+from backend.models.contact import Contact
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import serialize_transaction
 
@@ -58,6 +59,11 @@ def _serialize_with_contact(bill, session=None):
         .first()
     )
     data["contact_id"] = tc.contact_id if tc else None
+    if tc:
+        contact = g.session.get(Contact, tc.contact_id)
+        data["contact_name"] = contact.name if contact else None
+    else:
+        data["contact_name"] = None
     return data
 
 
@@ -214,6 +220,16 @@ def update_bill(bill_id):
                 g.session.add(line)
                 g.session.flush()
 
+            # Recalculate amount from new line items
+            total_amount = Decimal('0')
+            for li_data in line_items_data:
+                total_amount += (
+                    Decimal(str(li_data["amount"]))
+                    * Decimal(str(li_data.get("quantity", 1)))
+                )
+            bill.amount = total_amount
+            bill.main_account_amount = total_amount
+
             # Expire to pick up new line_items on next access
             g.session.expire(bill)
             # Re-set init attrs cleared by expire
@@ -223,6 +239,8 @@ def update_bill(bill_id):
             bill.account_type_map = {
                 "SupplierBill": Account.AccountType.PAYABLE,
             }
+            bill.amount = total_amount
+            bill.main_account_amount = total_amount
 
         # Update contact link if contact_id provided
         contact_id = data.get("contact_id")

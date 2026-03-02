@@ -13,7 +13,7 @@ import Button from '../../components/shared/Button'
 import FormField, { Input, Select } from '../../components/shared/FormField'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
-const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '' }
+const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '', product_id: '' }
 
 export default function InvoiceForm() {
   const { id } = useParams()
@@ -37,18 +37,22 @@ export default function InvoiceForm() {
 
   useEffect(() => {
     if (isEdit) {
-      fetchInvoice(id).then((inv) => {
+      Promise.all([fetchInvoice(id), fetchProducts('product')]).then(([inv, prods]) => {
         setForm({
           contact_id: inv.contact_id?.toString() || '',
           transaction_date: inv.transaction_date?.split('T')[0] || todayISO(),
           narration: inv.narration || '',
-          line_items: inv.line_items.map((li) => ({
-            narration: li.narration || '',
-            account_id: li.account_id || '',
-            quantity: li.quantity || 1,
-            amount: li.amount || '',
-            tax_id: li.tax_id || '',
-          })),
+          line_items: inv.line_items.map((li) => {
+            const matched = prods?.find((p) => p.name === li.narration)
+            return {
+              narration: li.narration || '',
+              account_id: li.account_id || '',
+              quantity: li.quantity || 1,
+              amount: li.amount || '',
+              tax_id: li.tax_id || '',
+              product_id: matched ? matched.id.toString() : '',
+            }
+          }),
         })
         setLoaded(true)
       }).catch((err) => {
@@ -67,12 +71,17 @@ export default function InvoiceForm() {
   }
 
   const selectProduct = (index, productId) => {
+    if (!productId) {
+      updateLine(index, 'product_id', '')
+      return
+    }
     const product = products?.find((p) => p.id === parseInt(productId))
     if (!product) return
     setForm((prev) => {
       const lines = [...prev.line_items]
       lines[index] = {
         ...lines[index],
+        product_id: productId.toString(),
         narration: product.name,
         account_id: product.revenue_account_id?.toString() || '',
         amount: product.default_price?.toString() || '',
@@ -188,7 +197,7 @@ export default function InvoiceForm() {
               {products?.length > 0 && (
                 <div className="col-span-2">
                   {i === 0 && <label className="block text-xs text-gray-500 mb-1">Product</label>}
-                  <Select onChange={(e) => { if (e.target.value) selectProduct(i, e.target.value); e.target.value = '' }}>
+                  <Select value={li.product_id} onChange={(e) => selectProduct(i, e.target.value)}>
                     <option value="">Select...</option>
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
