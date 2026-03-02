@@ -222,16 +222,6 @@ def update_invoice(invoice_id):
                 g.session.add(line)
                 g.session.flush()
 
-            # Recalculate amount from new line items
-            total_amount = Decimal('0')
-            for li_data in line_items_data:
-                total_amount += (
-                    Decimal(str(li_data["amount"]))
-                    * Decimal(str(li_data.get("quantity", 1)))
-                )
-            invoice.amount = total_amount
-            invoice.main_account_amount = total_amount
-
             # Expire to pick up new line_items on next access
             g.session.expire(invoice)
             # Re-set init attrs cleared by expire
@@ -241,8 +231,9 @@ def update_invoice(invoice_id):
             invoice.account_type_map = {
                 "ClientInvoice": Account.AccountType.RECEIVABLE,
             }
-            invoice.amount = total_amount
-            invoice.main_account_amount = total_amount
+            # main_account_amount is the real DB column; amount is
+            # a read-only property computed from line_items.
+            invoice.main_account_amount = invoice.amount
 
         # Update contact link if contact_id provided
         contact_id = data.get("contact_id")
