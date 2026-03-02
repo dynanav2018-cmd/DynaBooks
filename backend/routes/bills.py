@@ -204,9 +204,20 @@ def update_bill(bill_id):
             )
             g.session.flush()
 
+            # Expire to clear stale line_items relationship, then
+            # re-set init attrs the library needs for validation.
+            g.session.expire(bill)
+            bill.main_account_types = [Account.AccountType.PAYABLE]
+            bill.credited = True
+            bill.line_item_types = Account.purchasables
+            bill.account_type_map = {
+                "SupplierBill": Account.AccountType.PAYABLE,
+            }
+
             entity = g.session.entity
 
-            # Recreate line items
+            # Recreate line items using .line_items.add() so the
+            # library's @validates flips credited correctly.
             for li_data in line_items_data:
                 line = LineItem(
                     narration=li_data.get("narration", ""),
@@ -215,22 +226,12 @@ def update_bill(bill_id):
                     quantity=Decimal(str(li_data.get("quantity", 1))),
                     tax_id=li_data.get("tax_id"),
                     entity_id=entity.id,
-                    transaction_id=bill_id,
                 )
                 g.session.add(line)
                 g.session.flush()
+                bill.line_items.add(line)
+                g.session.flush()
 
-            # Expire to pick up new line_items on next access
-            g.session.expire(bill)
-            # Re-set init attrs cleared by expire
-            bill.main_account_types = [Account.AccountType.PAYABLE]
-            bill.credited = True
-            bill.line_item_types = Account.purchasables
-            bill.account_type_map = {
-                "SupplierBill": Account.AccountType.PAYABLE,
-            }
-            # main_account_amount is the real DB column; amount is
-            # a read-only property computed from line_items.
             bill.main_account_amount = bill.amount
 
         # Update contact link if contact_id provided

@@ -206,9 +206,20 @@ def update_invoice(invoice_id):
             )
             g.session.flush()
 
+            # Expire to clear stale line_items relationship, then
+            # re-set init attrs the library needs for validation.
+            g.session.expire(invoice)
+            invoice.main_account_types = [Account.AccountType.RECEIVABLE]
+            invoice.credited = False
+            invoice.line_item_types = [Account.AccountType.OPERATING_REVENUE]
+            invoice.account_type_map = {
+                "ClientInvoice": Account.AccountType.RECEIVABLE,
+            }
+
             entity = g.session.entity
 
-            # Recreate line items
+            # Recreate line items using .line_items.add() so the
+            # library's @validates flips credited correctly.
             for li_data in line_items_data:
                 line = LineItem(
                     narration=li_data.get("narration", ""),
@@ -217,22 +228,12 @@ def update_invoice(invoice_id):
                     quantity=Decimal(str(li_data.get("quantity", 1))),
                     tax_id=li_data.get("tax_id"),
                     entity_id=entity.id,
-                    transaction_id=invoice_id,
                 )
                 g.session.add(line)
                 g.session.flush()
+                invoice.line_items.add(line)
+                g.session.flush()
 
-            # Expire to pick up new line_items on next access
-            g.session.expire(invoice)
-            # Re-set init attrs cleared by expire
-            invoice.main_account_types = [Account.AccountType.RECEIVABLE]
-            invoice.credited = False
-            invoice.line_item_types = [Account.AccountType.OPERATING_REVENUE]
-            invoice.account_type_map = {
-                "ClientInvoice": Account.AccountType.RECEIVABLE,
-            }
-            # main_account_amount is the real DB column; amount is
-            # a read-only property computed from line_items.
             invoice.main_account_amount = invoice.amount
 
         # Update contact link if contact_id provided

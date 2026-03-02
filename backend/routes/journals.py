@@ -147,6 +147,8 @@ def update_journal(journal_id):
                     error="Could not derive main account from line items"
                 ), 400
 
+            # Expire to clear stale line_items, then re-set attrs.
+            g.session.expire(journal)
             journal.account_id = account_id
             journal.credited = main_credited
             journal.compound = True
@@ -154,7 +156,9 @@ def update_journal(journal_id):
 
             entity = g.session.entity
 
-            # Recreate line items
+            # Recreate line items using .line_items.add() so the
+            # library's @validates handles credited correctly.
+            persisted_lines = []
             for li_data in remaining:
                 line = LineItem(
                     narration=li_data.get("narration", ""),
@@ -163,15 +167,15 @@ def update_journal(journal_id):
                     quantity=Decimal(str(li_data.get("quantity", 1))),
                     credited=li_data.get("credited", False),
                     entity_id=entity.id,
-                    transaction_id=journal_id,
                 )
                 g.session.add(line)
                 g.session.flush()
+                persisted_lines.append(line)
 
-            # Expire to pick up new line_items on next access
-            g.session.expire(journal)
-            # amount is a read-only property computed from line_items;
-            # only main_account_amount is a real DB column.
+            for line in persisted_lines:
+                journal.line_items.add(line)
+            g.session.flush()
+
             journal.main_account_amount = main_amount
 
         # Auto-post if requested
