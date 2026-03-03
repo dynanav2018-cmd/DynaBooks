@@ -16,3 +16,6 @@ export const updateAccount = (id, data) =>
 
 export const deleteAccount = (id) =>
   apiFetch(`/accounts/${id}`, { method: 'DELETE' })
+
+export const fetchAccountLedger = (id) =>
+  apiFetch(`/accounts/${id}/ledger`)

@@ -1,5 +1,7 @@
 """Chart of Accounts routes."""
 
+from decimal import Decimal
+
 from flask import Blueprint, g, jsonify, request
 
 from python_accounting.models import Account
@@ -92,6 +94,46 @@ def create_account():
         return jsonify(error=str(e)), 400
 
     return jsonify(serialize_account(account)), 201
+
+
+@bp.route("/accounts/<int:account_id>/ledger", methods=["GET"])
+def get_account_ledger(account_id):
+    """Return all posted transactions for an account."""
+    account = g.session.get(Account, account_id)
+    if not account:
+        return jsonify(error="Account not found"), 404
+
+    try:
+        stmt = account.statement(g.session, None, None, schedule=False)
+    except Exception as e:
+        return jsonify(error=str(e)), 400
+
+    def _dec(v):
+        return float(v) if isinstance(v, Decimal) else v
+
+    entries = []
+    for tx in stmt.get("transactions", []):
+        entries.append({
+            "id": tx.id,
+            "transaction_no": tx.transaction_no,
+            "transaction_type": tx.transaction_type.value
+            if tx.transaction_type
+            else None,
+            "transaction_date": tx.transaction_date.isoformat()
+            if tx.transaction_date
+            else None,
+            "narration": tx.narration,
+            "debit": _dec(getattr(tx, "debit", 0)),
+            "credit": _dec(getattr(tx, "credit", 0)),
+            "balance": _dec(getattr(tx, "balance", 0)),
+        })
+
+    return jsonify({
+        "account": serialize_account(account),
+        "opening_balance": _dec(stmt.get("opening_balance", 0)),
+        "closing_balance": _dec(stmt.get("closing_balance", 0)),
+        "entries": entries,
+    })
 
 
 @bp.route("/accounts/<int:account_id>", methods=["PUT"])

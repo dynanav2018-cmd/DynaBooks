@@ -15,6 +15,7 @@ import JournalForm from './pages/journals/JournalForm'
 import BankingIndex from './pages/banking/BankingIndex'
 import ContactList from './pages/contacts/ContactList'
 import AccountList from './pages/accounts/AccountList'
+import AccountDetail from './pages/accounts/AccountDetail'
 import ReportsIndex from './pages/reports/ReportsIndex'
 import SettingsIndex from './pages/settings/SettingsIndex'
 import ClosingIndex from './pages/closing/ClosingIndex'
@@ -44,6 +45,7 @@ export default function App() {
             <Route path="banking" element={<BankingIndex />} />
             <Route path="contacts" element={<ContactList />} />
             <Route path="accounts" element={<AccountList />} />
+            <Route path="accounts/:id" element={<AccountDetail />} />
             <Route path="reports" element={<ReportsIndex />} />
             <Route path="reports/:type" element={<ReportsIndex />} />
             <Route path="settings" element={<SettingsIndex />} />

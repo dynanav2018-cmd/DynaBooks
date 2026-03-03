@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
 import { fetchAccounts, createAccount, updateAccount, deleteAccount } from '../../api/accounts'
@@ -25,7 +26,11 @@ export default function AccountList() {
   const toast = useToast()
 
   const columns = [
-    { key: 'account_number', label: 'Account #' },
+    { key: 'account_number', label: 'Account #',
+      render: (v, row) => (
+        <Link to={`/accounts/${row.id}`} className="text-accent hover:underline font-medium">{v}</Link>
+      ),
+    },
     { key: 'name', label: 'Account Name' },
     { key: 'type_group', label: 'Type' },
     { key: 'category', label: 'Category' },
