@@ -21,10 +21,11 @@ export default function Dashboard() {
         </Link>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Card title="Cash Balance" value={formatCurrency(data.total_cash)} accent />
         <Card title="Accounts Receivable" value={formatCurrency(data.accounts_receivable)} />
         <Card title="Accounts Payable" value={formatCurrency(data.accounts_payable)} />
+        <Card title="Inventory Value" value={formatCurrency(data.inventory_value)} />
         <Card title="Revenue This Month" value={formatCurrency(data.revenue_this_month)} />
         <Card title="Expenses This Month" value={formatCurrency(data.expenses_this_month)} />
         <Card
@@ -32,12 +33,19 @@ export default function Dashboard() {
           value={formatCurrency(data.net_income_this_month)}
           accent
         />
+        {data.low_stock_count > 0 && (
+          <Link to="/inventory" className="block">
+            <Card title="Low Stock Items" value={data.low_stock_count} />
+          </Link>
+        )}
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
         <div className="flex flex-wrap gap-3">
           <Link to="/invoices/new"><Button variant="secondary">Create Invoice</Button></Link>
+          <Link to="/purchase-orders/new"><Button variant="secondary">New Purchase Order</Button></Link>
+          <Link to="/inventory"><Button variant="secondary">Stock Levels</Button></Link>
           <Link to="/contacts"><Button variant="secondary">Manage Contacts</Button></Link>
           <Link to="/reports"><Button variant="secondary">View Reports</Button></Link>
           <Link to="/accounts"><Button variant="secondary">Chart of Accounts</Button></Link>

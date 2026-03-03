@@ -33,6 +33,33 @@ def _table_exists(inspector, table_name):
     return table_name in inspector.get_table_names()
 
 
+def _add_account_if_missing(conn, name, account_type, description):
+    """Insert an account if one with the same name does not already exist."""
+    row = conn.execute(
+        text("SELECT id FROM account WHERE name = :n"),
+        {"n": name},
+    ).fetchone()
+    if row:
+        return
+    # Get entity_id and currency_id from the first entity
+    entity_row = conn.execute(text(
+        "SELECT id, currency_id FROM entity LIMIT 1"
+    )).fetchone()
+    if not entity_row:
+        return
+    conn.execute(text(
+        "INSERT INTO account (name, account_type, description,"
+        " currency_id, entity_id)"
+        " VALUES (:name, :atype, :desc, :cid, :eid)"
+    ), {
+        "name": name,
+        "atype": account_type,
+        "desc": description,
+        "cid": entity_row[1],
+        "eid": entity_row[0],
+    })
+
+
 def run_migrations(engine):
     """Run all idempotent migrations."""
     insp = inspect(engine)
@@ -176,6 +203,98 @@ def run_migrations(engine):
                     UNIQUE(transaction_id)
                 )
             """))
+
+        # Products table: add inventory tracking columns
+        if "products" in tables:
+            for col, col_def in [
+                ("sku", "VARCHAR(100)"),
+                ("track_inventory", "BOOLEAN NOT NULL DEFAULT 0"),
+                ("quantity_on_hand", "NUMERIC(13, 4) NOT NULL DEFAULT 0"),
+                ("reorder_point", "NUMERIC(13, 4) NOT NULL DEFAULT 0"),
+                ("average_cost", "NUMERIC(13, 4) NOT NULL DEFAULT 0"),
+                ("inventory_account_id", "INTEGER"),
+                ("cogs_account_id", "INTEGER"),
+            ]:
+                if not _column_exists(insp, "products", col):
+                    conn.execute(text(
+                        f"ALTER TABLE products ADD COLUMN {col} {col_def}"
+                    ))
+
+        # Stock movements table
+        if not _table_exists(insp, "stock_movements"):
+            conn.execute(text("""
+                CREATE TABLE stock_movements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    product_id INTEGER NOT NULL,
+                    transaction_id INTEGER,
+                    purchase_order_id INTEGER,
+                    movement_type VARCHAR(30) NOT NULL,
+                    quantity_change NUMERIC(13, 4) NOT NULL,
+                    unit_cost NUMERIC(13, 4) NOT NULL,
+                    total_cost NUMERIC(13, 4) NOT NULL,
+                    quantity_after NUMERIC(13, 4) NOT NULL,
+                    average_cost_after NUMERIC(13, 4) NOT NULL,
+                    reference VARCHAR(255),
+                    notes TEXT,
+                    created_at DATETIME
+                )
+            """))
+
+        # COGS journal mapping table
+        if not _table_exists(insp, "cogs_journal_map"):
+            conn.execute(text("""
+                CREATE TABLE cogs_journal_map (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    invoice_transaction_id INTEGER NOT NULL UNIQUE,
+                    journal_transaction_id INTEGER NOT NULL
+                )
+            """))
+
+        # Purchase orders table
+        if not _table_exists(insp, "purchase_orders"):
+            conn.execute(text("""
+                CREATE TABLE purchase_orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    po_number VARCHAR(50) NOT NULL UNIQUE,
+                    supplier_contact_id INTEGER NOT NULL,
+                    order_date DATE NOT NULL,
+                    expected_date DATE,
+                    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+                    notes TEXT,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+            """))
+
+        # Purchase order lines table
+        if not _table_exists(insp, "purchase_order_lines"):
+            conn.execute(text("""
+                CREATE TABLE purchase_order_lines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    purchase_order_id INTEGER NOT NULL,
+                    product_id INTEGER NOT NULL,
+                    description VARCHAR(255),
+                    quantity_ordered NUMERIC(13, 4) NOT NULL,
+                    quantity_received NUMERIC(13, 4) NOT NULL DEFAULT 0,
+                    unit_cost NUMERIC(13, 4) NOT NULL,
+                    tax_id INTEGER
+                )
+            """))
+
+        # Fix Inventory account type: NON_CURRENT_ASSET -> INVENTORY
+        if "account" in tables:
+            conn.execute(text(
+                "UPDATE account SET account_type = 'Inventory'"
+                " WHERE name = 'Inventory'"
+                " AND account_type = 'Non Current Asset'"
+            ))
+
+        # Add missing accounts for inventory module
+        if "account" in tables:
+            _add_account_if_missing(conn, "Inventory Adjustments",
+                                    "Non Operating Revenue", "Spec #4910")
+            _add_account_if_missing(conn, "Inventory Write-Off",
+                                    "Direct Expense", "Spec #5010")
 
         # Fix account names: replace double hyphens with em dashes
         if "account" in tables:

@@ -76,6 +76,8 @@ def create_app(session_factory=None):
     from backend.routes.closing import bp as closing_bp
     from backend.routes.recurring_journals import bp as recurring_journals_bp
     from backend.routes.companies import bp as companies_bp
+    from backend.routes.inventory import bp as inventory_bp
+    from backend.routes.purchase_orders import bp as purchase_orders_bp
 
     app.register_blueprint(company_bp)
     app.register_blueprint(accounts_bp)
@@ -93,6 +95,8 @@ def create_app(session_factory=None):
     app.register_blueprint(closing_bp)
     app.register_blueprint(recurring_journals_bp)
     app.register_blueprint(companies_bp)
+    app.register_blueprint(inventory_bp)
+    app.register_blueprint(purchase_orders_bp)
 
     # ── Build config endpoint ────────────────────────────────────────
     if getattr(sys, 'frozen', False):

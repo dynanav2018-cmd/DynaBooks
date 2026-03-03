@@ -13,12 +13,24 @@ from backend.models.company_info import CompanyInfo
 from backend.models.contact import Contact
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import serialize_transaction
+from backend.services.inventory import (
+    check_stock_availability,
+    create_cogs_journal_entry,
+    get_inventory_products_from_line_items,
+    record_stock_sale,
+    reverse_cogs_journal,
+    reverse_stock_movements,
+)
 
 bp = Blueprint("invoices", __name__, url_prefix="/api")
 
 
 def _check_and_unpost(session, transaction, transaction_id):
-    """If posted and allow_edit_posted is on, un-post via raw SQL."""
+    """If posted and allow_edit_posted is on, un-post via raw SQL.
+
+    Also reverses any inventory stock movements and COGS journals that
+    were auto-created when the invoice was posted.
+    """
     if not transaction.is_posted:
         return None
     info = session.query(CompanyInfo).filter(
@@ -38,6 +50,11 @@ def _check_and_unpost(session, transaction, transaction_id):
         )
         for lid in ledger_ids:
             conn.execute(text("DELETE FROM recyclable WHERE id = :id"), {"id": lid})
+
+    # Reverse inventory effects
+    reverse_cogs_journal(session, transaction_id)
+    reverse_stock_movements(session, transaction_id)
+
     session.expire(transaction)
     return None
 
@@ -147,7 +164,27 @@ def create_invoice():
 
         # Auto-post if requested
         if data.get("post", False):
+            inv_items = get_inventory_products_from_line_items(
+                g.session, list(invoice.line_items)
+            )
+            if inv_items:
+                errors = check_stock_availability(g.session, inv_items)
+                if errors:
+                    g.session.rollback()
+                    return jsonify(error="; ".join(errors)), 400
+
             invoice.post(g.session)
+
+            if inv_items:
+                for li, product in inv_items:
+                    record_stock_sale(
+                        g.session,
+                        product,
+                        Decimal(str(li.quantity)),
+                        transaction_id=invoice.id,
+                        reference=invoice.transaction_no or "",
+                    )
+                create_cogs_journal_entry(g.session, invoice, inv_items)
 
         g.session.commit()
     except Exception as e:
@@ -253,7 +290,27 @@ def update_invoice(invoice_id):
 
         # Auto-post if requested
         if data.get("post", False):
+            inv_items = get_inventory_products_from_line_items(
+                g.session, list(invoice.line_items)
+            )
+            if inv_items:
+                errors = check_stock_availability(g.session, inv_items)
+                if errors:
+                    g.session.rollback()
+                    return jsonify(error="; ".join(errors)), 400
+
             invoice.post(g.session)
+
+            if inv_items:
+                for li, product in inv_items:
+                    record_stock_sale(
+                        g.session,
+                        product,
+                        Decimal(str(li.quantity)),
+                        transaction_id=invoice.id,
+                        reference=invoice.transaction_no or "",
+                    )
+                create_cogs_journal_entry(g.session, invoice, inv_items)
 
         g.session.commit()
     except Exception as e:
@@ -293,7 +350,29 @@ def post_invoice(invoice_id):
         return jsonify(error="Invoice is already posted"), 409
 
     try:
+        # Check stock availability for inventory products
+        inv_items = get_inventory_products_from_line_items(
+            g.session, list(invoice.line_items)
+        )
+        if inv_items:
+            errors = check_stock_availability(g.session, inv_items)
+            if errors:
+                return jsonify(error="; ".join(errors)), 400
+
         invoice.post(g.session)
+
+        # Record stock sales and auto-create COGS journal
+        if inv_items:
+            for li, product in inv_items:
+                record_stock_sale(
+                    g.session,
+                    product,
+                    Decimal(str(li.quantity)),
+                    transaction_id=invoice.id,
+                    reference=invoice.transaction_no or "",
+                )
+            create_cogs_journal_entry(g.session, invoice, inv_items)
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()

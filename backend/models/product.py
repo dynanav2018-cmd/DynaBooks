@@ -21,6 +21,16 @@ class Product(CustomBase):
     expense_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tax_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Inventory tracking fields
+    sku: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    track_inventory: Mapped[bool] = mapped_column(Boolean, default=False)
+    quantity_on_hand: Mapped[Decimal] = mapped_column(Numeric(13, 4), default=0)
+    reorder_point: Mapped[Decimal] = mapped_column(Numeric(13, 4), default=0)
+    average_cost: Mapped[Decimal] = mapped_column(Numeric(13, 4), default=0)
+    inventory_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cogs_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

@@ -43,6 +43,13 @@ def create_product():
     if product_type == "recurring" and not data.get("expense_account_id"):
         return jsonify(error="expense_account_id is required for recurring expenses"), 400
 
+    track_inventory = bool(data.get("track_inventory", False))
+    if track_inventory:
+        if not data.get("inventory_account_id"):
+            return jsonify(error="inventory_account_id is required when tracking inventory"), 400
+        if not data.get("cogs_account_id"):
+            return jsonify(error="cogs_account_id is required when tracking inventory"), 400
+
     product = Product(
         name=name,
         description=data.get("description"),
@@ -51,6 +58,11 @@ def create_product():
         revenue_account_id=data.get("revenue_account_id"),
         expense_account_id=data.get("expense_account_id"),
         tax_id=data.get("tax_id"),
+        sku=data.get("sku"),
+        track_inventory=track_inventory,
+        reorder_point=data.get("reorder_point", 0),
+        inventory_account_id=data.get("inventory_account_id"),
+        cogs_account_id=data.get("cogs_account_id"),
     )
     g.session.add(product)
 
@@ -76,6 +88,8 @@ def update_product(product_id):
     updatable = [
         "name", "description", "default_price", "revenue_account_id",
         "expense_account_id", "tax_id", "product_type",
+        "sku", "track_inventory", "reorder_point",
+        "inventory_account_id", "cogs_account_id",
     ]
     for field in updatable:
         if field in data:

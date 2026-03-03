@@ -21,6 +21,11 @@ import ReportsIndex from './pages/reports/ReportsIndex'
 import SettingsIndex from './pages/settings/SettingsIndex'
 import ClosingIndex from './pages/closing/ClosingIndex'
 import CompanySelector from './pages/company/CompanySelector'
+import InventoryList from './pages/inventory/InventoryList'
+import InventoryDetail from './pages/inventory/InventoryDetail'
+import PurchaseOrderList from './pages/inventory/PurchaseOrderList'
+import PurchaseOrderForm from './pages/inventory/PurchaseOrderForm'
+import PurchaseOrderDetail from './pages/inventory/PurchaseOrderDetail'
 
 export default function App() {
   useEffect(() => {
@@ -50,6 +55,12 @@ export default function App() {
             <Route path="journals" element={<JournalList />} />
             <Route path="journals/new" element={<JournalForm />} />
             <Route path="journals/:id/edit" element={<JournalForm />} />
+            <Route path="inventory" element={<InventoryList />} />
+            <Route path="inventory/:id" element={<InventoryDetail />} />
+            <Route path="purchase-orders" element={<PurchaseOrderList />} />
+            <Route path="purchase-orders/new" element={<PurchaseOrderForm />} />
+            <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
+            <Route path="purchase-orders/:id/edit" element={<PurchaseOrderForm />} />
             <Route path="banking" element={<BankingIndex />} />
             <Route path="contacts" element={<ContactList />} />
             <Route path="accounts" element={<AccountList />} />

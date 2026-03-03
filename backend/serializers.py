@@ -227,7 +227,7 @@ def serialize_recurring_journal(rj):
 
 
 def serialize_product(product):
-    return {
+    result = {
         "id": product.id,
         "name": product.name,
         "description": product.description,
@@ -237,6 +237,65 @@ def serialize_product(product):
         "expense_account_id": product.expense_account_id,
         "tax_id": product.tax_id,
         "is_active": product.is_active,
+        "sku": getattr(product, "sku", None),
+        "track_inventory": getattr(product, "track_inventory", False),
+        "quantity_on_hand": _dec(getattr(product, "quantity_on_hand", 0)),
+        "reorder_point": _dec(getattr(product, "reorder_point", 0)),
+        "average_cost": _dec(getattr(product, "average_cost", 0)),
+        "inventory_account_id": getattr(product, "inventory_account_id", None),
+        "cogs_account_id": getattr(product, "cogs_account_id", None),
+    }
+    return result
+
+
+def serialize_stock_movement(movement):
+    return {
+        "id": movement.id,
+        "product_id": movement.product_id,
+        "transaction_id": movement.transaction_id,
+        "purchase_order_id": movement.purchase_order_id,
+        "movement_type": movement.movement_type,
+        "quantity_change": _dec(movement.quantity_change),
+        "unit_cost": _dec(movement.unit_cost),
+        "total_cost": _dec(movement.total_cost),
+        "quantity_after": _dec(movement.quantity_after),
+        "average_cost_after": _dec(movement.average_cost_after),
+        "reference": movement.reference,
+        "notes": movement.notes,
+        "created_at": movement.created_at.isoformat() if movement.created_at else None,
+    }
+
+
+def serialize_purchase_order(po, lines=None):
+    result = {
+        "id": po.id,
+        "po_number": po.po_number,
+        "supplier_contact_id": po.supplier_contact_id,
+        "order_date": po.order_date.isoformat() if po.order_date else None,
+        "expected_date": po.expected_date.isoformat() if po.expected_date else None,
+        "status": po.status,
+        "notes": po.notes,
+        "created_at": po.created_at.isoformat() if po.created_at else None,
+        "updated_at": po.updated_at.isoformat() if po.updated_at else None,
+    }
+    if lines is not None:
+        result["lines"] = [serialize_purchase_order_line(l) for l in lines]
+        result["total"] = sum(
+            _dec(l.quantity_ordered) * _dec(l.unit_cost) for l in lines
+        )
+    return result
+
+
+def serialize_purchase_order_line(line):
+    return {
+        "id": line.id,
+        "purchase_order_id": line.purchase_order_id,
+        "product_id": line.product_id,
+        "description": line.description,
+        "quantity_ordered": _dec(line.quantity_ordered),
+        "quantity_received": _dec(line.quantity_received),
+        "unit_cost": _dec(line.unit_cost),
+        "tax_id": line.tax_id,
     }
 
 

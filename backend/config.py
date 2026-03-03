@@ -22,6 +22,8 @@ def init_db():
     from backend.models.transaction_contact import TransactionContact  # noqa: F401
     from backend.models.company_info import CompanyInfo  # noqa: F401
     from backend.models.recurring_journal import RecurringJournal  # noqa: F401
+    from backend.models.stock_movement import StockMovement, CogsJournalMap  # noqa: F401
+    from backend.models.purchase_order import PurchaseOrder, PurchaseOrderLine  # noqa: F401
 
     Base.metadata.create_all(engine)
     CustomBase.metadata.create_all(engine)

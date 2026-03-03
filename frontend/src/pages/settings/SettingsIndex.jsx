@@ -271,18 +271,22 @@ function ProductSettings() {
   const { data: products, loading, refetch } = useApi(() => fetchProducts(subTab), [subTab])
   const { data: revenueAccounts } = useApi(() => fetchAccounts('Operating Revenue'), [])
   const { data: expenseAccounts } = useApi(() => fetchAccounts(null, 'expense'), [])
+  const { data: inventoryAccounts } = useApi(() => fetchAccounts('Inventory'), [])
+  const { data: cogsAccounts } = useApi(() => fetchAccounts('Direct Expense'), [])
   const { data: taxes } = useApi(fetchTaxes, [])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', description: '', default_price: '', revenue_account_id: '', expense_account_id: '', tax_id: '' })
+  const [form, setForm] = useState({ name: '', description: '', default_price: '', revenue_account_id: '', expense_account_id: '', tax_id: '', sku: '', track_inventory: false, reorder_point: '', inventory_account_id: '', cogs_account_id: '' })
   const toast = useToast()
 
   const isRecurring = subTab === 'recurring'
 
   const columns = [
+    ...(subTab === 'product' ? [{ key: 'sku', label: 'SKU' }] : []),
     { key: 'name', label: 'Name' },
     { key: 'description', label: 'Description' },
     { key: 'default_price', label: 'Price', render: (v) => `$${(v || 0).toFixed(2)}` },
+    ...(subTab === 'product' ? [{ key: 'track_inventory', label: 'Inventory', render: (v) => v ? 'Yes' : '—' }] : []),
     {
       key: 'actions',
       label: '',
@@ -297,7 +301,7 @@ function ProductSettings() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ name: '', description: '', default_price: '', revenue_account_id: '', expense_account_id: '', tax_id: '' })
+    setForm({ name: '', description: '', default_price: '', revenue_account_id: '', expense_account_id: '', tax_id: '', sku: '', track_inventory: false, reorder_point: '', inventory_account_id: '', cogs_account_id: '' })
     setModalOpen(true)
   }
 
@@ -310,6 +314,11 @@ function ProductSettings() {
       revenue_account_id: product.revenue_account_id?.toString() || '',
       expense_account_id: product.expense_account_id?.toString() || '',
       tax_id: product.tax_id?.toString() || '',
+      sku: product.sku || '',
+      track_inventory: product.track_inventory || false,
+      reorder_point: product.reorder_point?.toString() || '',
+      inventory_account_id: product.inventory_account_id?.toString() || '',
+      cogs_account_id: product.cogs_account_id?.toString() || '',
     })
     setModalOpen(true)
   }
@@ -327,6 +336,13 @@ function ProductSettings() {
       payload.expense_account_id = parseInt(form.expense_account_id)
     } else {
       payload.revenue_account_id = parseInt(form.revenue_account_id)
+      payload.sku = form.sku || null
+      payload.track_inventory = form.track_inventory
+      if (form.track_inventory) {
+        payload.reorder_point = parseFloat(form.reorder_point) || 0
+        payload.inventory_account_id = form.inventory_account_id ? parseInt(form.inventory_account_id) : null
+        payload.cogs_account_id = form.cogs_account_id ? parseInt(form.cogs_account_id) : null
+      }
     }
     try {
       if (editing) {
@@ -402,14 +418,51 @@ function ProductSettings() {
               </Select>
             </FormField>
           ) : (
-            <FormField label="Revenue Account" required>
-              <Select value={form.revenue_account_id} onChange={(e) => setForm({ ...form, revenue_account_id: e.target.value })} required>
-                <option value="">Select account...</option>
-                {revenueAccounts?.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </Select>
-            </FormField>
+            <>
+              <FormField label="SKU">
+                <Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="e.g. WIDGET-001" />
+              </FormField>
+              <FormField label="Revenue Account" required>
+                <Select value={form.revenue_account_id} onChange={(e) => setForm({ ...form, revenue_account_id: e.target.value })} required>
+                  <option value="">Select account...</option>
+                  {revenueAccounts?.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+              <label className="flex items-center gap-2 mt-3 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.track_inventory}
+                  onChange={(e) => setForm({ ...form, track_inventory: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+                />
+                <span className="text-sm font-medium text-gray-700">Track Inventory</span>
+              </label>
+              {form.track_inventory && (
+                <>
+                  <FormField label="Reorder Point">
+                    <Input type="number" min="0" step="any" value={form.reorder_point} onChange={(e) => setForm({ ...form, reorder_point: e.target.value })} placeholder="0" />
+                  </FormField>
+                  <FormField label="Inventory Account">
+                    <Select value={form.inventory_account_id} onChange={(e) => setForm({ ...form, inventory_account_id: e.target.value })}>
+                      <option value="">Select account...</option>
+                      {inventoryAccounts?.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="COGS Account">
+                    <Select value={form.cogs_account_id} onChange={(e) => setForm({ ...form, cogs_account_id: e.target.value })}>
+                      <option value="">Select account...</option>
+                      {cogsAccounts?.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </>
+              )}
+            </>
           )}
           <FormField label="Tax">
             <Select value={form.tax_id} onChange={(e) => setForm({ ...form, tax_id: e.target.value })}>

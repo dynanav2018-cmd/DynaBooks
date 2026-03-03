@@ -13,12 +13,21 @@ from backend.models.company_info import CompanyInfo
 from backend.models.contact import Contact
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import serialize_transaction
+from backend.services.inventory import (
+    get_inventory_products_from_line_items,
+    record_stock_purchase,
+    reverse_stock_movements,
+)
 
 bp = Blueprint("bills", __name__, url_prefix="/api")
 
 
 def _check_and_unpost(session, transaction, transaction_id):
-    """If posted and allow_edit_posted is on, un-post via raw SQL."""
+    """If posted and allow_edit_posted is on, un-post via raw SQL.
+
+    Also reverses any inventory stock movements that were auto-created
+    when the bill was posted.
+    """
     if not transaction.is_posted:
         return None
     info = session.query(CompanyInfo).filter(
@@ -38,6 +47,10 @@ def _check_and_unpost(session, transaction, transaction_id):
         )
         for lid in ledger_ids:
             conn.execute(text("DELETE FROM recyclable WHERE id = :id"), {"id": lid})
+
+    # Reverse inventory effects
+    reverse_stock_movements(session, transaction_id)
+
     session.expire(transaction)
     return None
 
@@ -147,6 +160,22 @@ def create_bill():
         if data.get("post", False):
             bill.post(g.session)
 
+            # Record stock purchases for inventory-tracked products
+            inv_items = get_inventory_products_from_line_items(
+                g.session, list(bill.line_items)
+            )
+            if inv_items:
+                for li, product in inv_items:
+                    unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
+                    record_stock_purchase(
+                        g.session,
+                        product,
+                        Decimal(str(li.quantity)),
+                        unit_cost,
+                        transaction_id=bill.id,
+                        reference=bill.transaction_no or "",
+                    )
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()
@@ -252,6 +281,21 @@ def update_bill(bill_id):
         if data.get("post", False):
             bill.post(g.session)
 
+            inv_items = get_inventory_products_from_line_items(
+                g.session, list(bill.line_items)
+            )
+            if inv_items:
+                for li, product in inv_items:
+                    unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
+                    record_stock_purchase(
+                        g.session,
+                        product,
+                        Decimal(str(li.quantity)),
+                        unit_cost,
+                        transaction_id=bill.id,
+                        reference=bill.transaction_no or "",
+                    )
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()
@@ -291,6 +335,23 @@ def post_bill(bill_id):
 
     try:
         bill.post(g.session)
+
+        # Record stock purchases for inventory-tracked products
+        inv_items = get_inventory_products_from_line_items(
+            g.session, list(bill.line_items)
+        )
+        if inv_items:
+            for li, product in inv_items:
+                unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
+                record_stock_purchase(
+                    g.session,
+                    product,
+                    Decimal(str(li.quantity)),
+                    unit_cost,
+                    transaction_id=bill.id,
+                    reference=bill.transaction_no or "",
+                )
+
         g.session.commit()
     except Exception as e:
         g.session.rollback()

@@ -12,7 +12,7 @@ CHART_OF_ACCOUNTS = [
     ("USD Bank Account", Account.AccountType.BANK, "1020"),
     ("Accounts Receivable", Account.AccountType.RECEIVABLE, "1100"),
     ("Prepaid Expenses", Account.AccountType.NON_CURRENT_ASSET, "1200"),
-    ("Inventory", Account.AccountType.NON_CURRENT_ASSET, "1300"),
+    ("Inventory", Account.AccountType.INVENTORY, "1300"),
     ("Equipment", Account.AccountType.NON_CURRENT_ASSET, "1500"),
     # Contra Asset
     ("Accumulated Depreciation", Account.AccountType.CONTRA_ASSET, "1510"),
@@ -31,8 +31,10 @@ CHART_OF_ACCOUNTS = [
     ("Service Revenue — Support", Account.AccountType.OPERATING_REVENUE, "4030"),
     ("Shipping Revenue", Account.AccountType.OPERATING_REVENUE, "4100"),
     ("Other Income", Account.AccountType.NON_OPERATING_REVENUE, "4900"),
+    ("Inventory Adjustments", Account.AccountType.NON_OPERATING_REVENUE, "4910"),
     # Expenses
     ("Cost of Goods Sold", Account.AccountType.DIRECT_EXPENSE, "5000"),
+    ("Inventory Write-Off", Account.AccountType.DIRECT_EXPENSE, "5010"),
     ("Shipping Expense", Account.AccountType.OPERATING_EXPENSE, "5100"),
     ("Salaries & Wages", Account.AccountType.OPERATING_EXPENSE, "6000"),
     ("Rent", Account.AccountType.OPERATING_EXPENSE, "6100"),

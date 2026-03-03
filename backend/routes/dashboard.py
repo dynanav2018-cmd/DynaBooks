@@ -1,12 +1,14 @@
 """Dashboard aggregation route."""
 
 from datetime import datetime
+from decimal import Decimal
 
 from flask import Blueprint, g, jsonify
 
 from python_accounting.models import Account
 from python_accounting.reports import IncomeStatement
 
+from backend.models.product import Product
 from backend.serializers import _dec
 
 bp = Blueprint("dashboard", __name__, url_prefix="/api")
@@ -51,6 +53,20 @@ def dashboard():
         except Exception:
             pass
 
+        # Inventory summary
+        inv_products = session.query(Product).filter(
+            Product.track_inventory.is_(True),
+            Product.is_active.is_(True),
+        ).all()
+        inventory_value = sum(
+            Decimal(str(p.quantity_on_hand or 0)) * Decimal(str(p.average_cost or 0))
+            for p in inv_products
+        )
+        low_stock_count = sum(
+            1 for p in inv_products
+            if Decimal(str(p.quantity_on_hand or 0)) <= Decimal(str(p.reorder_point or 0))
+        )
+
         result = {
             "total_cash": _dec(total_cash),
             "accounts_receivable": _dec(accounts_receivable),
@@ -58,6 +74,8 @@ def dashboard():
             "revenue_this_month": _dec(revenue_this_month),
             "expenses_this_month": _dec(expenses_this_month),
             "net_income_this_month": _dec(net_income_this_month),
+            "inventory_value": _dec(inventory_value),
+            "low_stock_count": low_stock_count,
         }
     except Exception as e:
         return jsonify(error=str(e)), 500
