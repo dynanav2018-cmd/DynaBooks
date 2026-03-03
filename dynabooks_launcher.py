@@ -4,11 +4,29 @@ Starts Flask server, opens browser, and shows a system tray icon.
 Uses a fixed port and lock file to enforce single-instance.
 """
 
+import json
 import os
 import socket
 import sys
 import threading
 import webbrowser
+
+
+def _load_build_config() -> dict:
+    """Load build_config.json from the bundled package or project root."""
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    cfg_path = os.path.join(base, 'build_config.json')
+    if os.path.isfile(cfg_path):
+        with open(cfg_path) as f:
+            return json.load(f)
+    return {"tier": "Light", "app_name": "DynaBooks Light", "dist_folder": "DynaBooks-Light"}
+
+
+BUILD_CONFIG = _load_build_config()
+APP_NAME = BUILD_CONFIG["app_name"]
 
 # Fixed port so we can detect a running instance
 DYNABOOKS_PORT = 52525
@@ -129,7 +147,7 @@ def main():
         _run_with_tray(app, url)
     except ImportError:
         # pystray not available, just run Flask directly
-        print(f"DynaBooks running at {url}")
+        print(f"{APP_NAME} running at {url}")
         try:
             app.run(host="127.0.0.1", port=DYNABOOKS_PORT, debug=False, use_reloader=False)
         finally:
@@ -161,7 +179,7 @@ def _run_with_tray(app, url):
         pystray.MenuItem("Quit", on_quit),
     )
 
-    icon = pystray.Icon("DynaBooks", create_icon_image(), "DynaBooks", menu)
+    icon = pystray.Icon(APP_NAME, create_icon_image(), APP_NAME, menu)
 
     # Run Flask in a background thread
     server_thread = threading.Thread(
@@ -173,7 +191,7 @@ def _run_with_tray(app, url):
     server_thread.start()
 
     # Run tray icon on main thread (required on Windows)
-    print(f"DynaBooks running at {url}")
+    print(f"{APP_NAME} running at {url}")
     icon.run()
 
 

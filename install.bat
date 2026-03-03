@@ -1,10 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
-title DynaBooks Installer
+
+:: ── Read tier config from build_config.json ─────────────────
+set "APP_NAME=DynaBooks"
+set "FOLDER_NAME=DynaBooks"
+set "EXE_NAME=DynaBooks.exe"
+
+set "CFG=%~dp0build_config.json"
+if exist "!CFG!" (
+    for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "try { (Get-Content '!CFG!' | ConvertFrom-Json).app_name } catch {}"`) do (
+        if not "%%V"=="" set "APP_NAME=%%V"
+    )
+    for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "try { (Get-Content '!CFG!' | ConvertFrom-Json).dist_folder } catch {}"`) do (
+        if not "%%V"=="" set "FOLDER_NAME=%%V"
+    )
+)
+
+:: Derive EXE name: replace spaces with hyphens to match PyInstaller output
+set "EXE_NAME=!APP_NAME: =-!.exe"
+
+title !APP_NAME! Installer
 
 echo.
 echo  ========================================
-echo       DynaBooks Installation
+echo       !APP_NAME! Installation
 echo  ========================================
 echo.
 
@@ -30,10 +49,10 @@ if not defined DROPBOX_PATH (
 
 :: ── Set default install directory ──────────────────────────
 if defined DROPBOX_PATH (
-    set "DEFAULT_DIR=!DROPBOX_PATH!\DynaBooks"
+    set "DEFAULT_DIR=!DROPBOX_PATH!\!FOLDER_NAME!"
     echo  Dropbox detected: !DROPBOX_PATH!
 ) else (
-    set "DEFAULT_DIR=%USERPROFILE%\DynaBooks"
+    set "DEFAULT_DIR=%USERPROFILE%\!FOLDER_NAME!"
     echo  Dropbox not detected. Using home directory.
 )
 
@@ -41,7 +60,7 @@ echo.
 echo  Default: !DEFAULT_DIR!
 echo.
 echo  Press Enter to accept the default, or
-echo  type a different path (e.g. C:\MyApps\DynaBooks)
+echo  type a different path (e.g. C:\MyApps\!FOLDER_NAME!)
 echo.
 set /p "INSTALL_DIR=  Install to [!DEFAULT_DIR!]: "
 if "!INSTALL_DIR!"=="" set "INSTALL_DIR=!DEFAULT_DIR!"
@@ -49,7 +68,7 @@ echo.
 echo  Installing to: !INSTALL_DIR!
 
 :: ── Check for existing installation ────────────────────────
-if exist "!INSTALL_DIR!\DynaBooks.exe" (
+if exist "!INSTALL_DIR!\!EXE_NAME!" (
     echo.
     echo  Existing installation detected.
     echo  Your accounting data will be preserved.
@@ -63,10 +82,10 @@ set "SOURCE=%~dp0"
 :: Remove trailing backslash
 if "!SOURCE:~-1!"=="\" set "SOURCE=!SOURCE:~0,-1!"
 
-if not exist "!SOURCE!\DynaBooks.exe" (
+if not exist "!SOURCE!\!EXE_NAME!" (
     echo.
-    echo  ERROR: Cannot find DynaBooks.exe in the installer directory.
-    echo  Make sure this installer is in the same folder as DynaBooks.exe.
+    echo  ERROR: Cannot find !EXE_NAME! in the installer directory.
+    echo  Make sure this installer is in the same folder as !EXE_NAME!.
     pause
     goto :eof
 )
@@ -79,10 +98,10 @@ echo.
 echo  Copying application files...
 
 :: Copy EXE
-copy /Y "!SOURCE!\DynaBooks.exe" "!INSTALL_DIR!\" >nul
+copy /Y "!SOURCE!\!EXE_NAME!" "!INSTALL_DIR!\" >nul
 if errorlevel 1 (
-    echo  ERROR: Could not copy DynaBooks.exe
-    echo  Make sure DynaBooks is not currently running.
+    echo  ERROR: Could not copy !EXE_NAME!
+    echo  Make sure !APP_NAME! is not currently running.
     pause
     goto :eof
 )
@@ -118,10 +137,10 @@ if not exist "!INSTALL_DIR!\data" (
 echo  Creating desktop shortcut...
 powershell -NoProfile -Command ^
     "$ws = New-Object -ComObject WScript.Shell;" ^
-    "$sc = $ws.CreateShortcut([System.IO.Path]::Combine($env:USERPROFILE, 'Desktop', 'DynaBooks.lnk'));" ^
-    "$sc.TargetPath = '!INSTALL_DIR!\DynaBooks.exe';" ^
+    "$sc = $ws.CreateShortcut([System.IO.Path]::Combine($env:USERPROFILE, 'Desktop', '!APP_NAME!.lnk'));" ^
+    "$sc.TargetPath = '!INSTALL_DIR!\!EXE_NAME!';" ^
     "$sc.WorkingDirectory = '!INSTALL_DIR!';" ^
-    "$sc.Description = 'DynaBooks Accounting';" ^
+    "$sc.Description = '!APP_NAME! Accounting';" ^
     "$sc.Save()"
 
 :: ── Done ───────────────────────────────────────────────────
@@ -131,7 +150,7 @@ echo       Installation Complete!
 echo  ========================================
 echo.
 echo  Installed to: !INSTALL_DIR!
-echo  Desktop shortcut: DynaBooks.lnk
+echo  Desktop shortcut: !APP_NAME!.lnk
 echo.
 echo  A default company "My Company" has been
 echo  created. Go to Settings to rename it.

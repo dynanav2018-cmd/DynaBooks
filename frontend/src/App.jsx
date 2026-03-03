@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { ToastProvider } from './hooks/useToast'
 import { CompanyProvider } from './hooks/useCompany'
@@ -22,6 +23,13 @@ import ClosingIndex from './pages/closing/ClosingIndex'
 import CompanySelector from './pages/company/CompanySelector'
 
 export default function App() {
+  useEffect(() => {
+    fetch('/api/build-config')
+      .then(r => r.json())
+      .then(cfg => { document.title = cfg.app_name || 'DynaBooks' })
+      .catch(() => {})
+  }, [])
+
   return (
     <CompanyProvider>
       <SettingsProvider>

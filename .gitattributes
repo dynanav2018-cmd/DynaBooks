@@ -1,0 +1,2 @@
+# Keep each branch's build_config.json during merges
+build_config.json merge=ours

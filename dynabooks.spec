@@ -2,9 +2,16 @@
 """PyInstaller spec for DynaBooks standalone app."""
 
 import importlib
+import json
 import os
 import pathlib
 import tempfile
+
+# Read tier configuration
+with open(os.path.join(SPECPATH, 'build_config.json')) as _f:
+    _cfg = json.load(_f)
+_app_name = _cfg['app_name'].replace(' ', '-')   # e.g. "DynaBooks-Light"
+_dist_folder = _cfg['dist_folder']                # e.g. "DynaBooks-Light"
 
 # Build outside Dropbox to avoid file lock conflicts
 _build_dir = os.path.join(tempfile.gettempdir(), 'dynabooks_build')
@@ -24,6 +31,7 @@ a = Analysis(
         ('frontend/dist', 'frontend/dist'),
         ('backend/templates', 'backend/templates'),
         (_config_toml, '.'),
+        ('build_config.json', '.'),
     ],
     hiddenimports=[
         'python_accounting',
@@ -77,7 +85,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='DynaBooks',
+    name=_app_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -94,18 +102,23 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='DynaBooks',
+    name=_dist_folder,
 )
 
 # ── Post-build: copy install.bat and dist_data alongside the EXE ──
 import shutil
 
-_dist_app = os.path.join(DISTPATH, 'DynaBooks')
+_dist_app = os.path.join(DISTPATH, _dist_folder)
 
 # install.bat
 _install_bat = os.path.join(SPECPATH, 'install.bat')
 if os.path.isfile(_install_bat):
     shutil.copy2(_install_bat, _dist_app)
+
+# build_config.json (so install.bat can read tier info)
+_build_cfg_src = os.path.join(SPECPATH, 'build_config.json')
+if os.path.isfile(_build_cfg_src):
+    shutil.copy2(_build_cfg_src, _dist_app)
 
 # dist_data/ (clean default company database)
 _dist_data_src = os.path.join(SPECPATH, 'dist_data')

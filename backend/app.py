@@ -1,5 +1,6 @@
 """Flask application factory for DynaBooks."""
 
+import json
 import os
 import sys
 
@@ -93,12 +94,24 @@ def create_app(session_factory=None):
     app.register_blueprint(recurring_journals_bp)
     app.register_blueprint(companies_bp)
 
-    # ── SPA static file serving ──────────────────────────────────────
-    # Handle PyInstaller frozen paths
+    # ── Build config endpoint ────────────────────────────────────────
     if getattr(sys, 'frozen', False):
         base_dir = sys._MEIPASS
     else:
         base_dir = os.path.dirname(os.path.dirname(__file__))
+
+    _cfg_path = os.path.join(base_dir, 'build_config.json')
+    if os.path.isfile(_cfg_path):
+        with open(_cfg_path) as _f:
+            _build_cfg = json.load(_f)
+    else:
+        _build_cfg = {"tier": "Light", "app_name": "DynaBooks Light"}
+
+    @app.route("/api/build-config")
+    def build_config():
+        return jsonify(_build_cfg)
+
+    # ── SPA static file serving ──────────────────────────────────────
 
     frontend_dist = os.path.join(base_dir, "frontend", "dist")
 
