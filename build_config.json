@@ -1,5 +1,5 @@
 {
-  "tier": "Light",
-  "app_name": "DynaBooks Light",
-  "dist_folder": "DynaBooks-Light"
+  "tier": "Intermediate",
+  "app_name": "DynaBooks Intermediate",
+  "dist_folder": "DynaBooks-Intermediate"
 }
