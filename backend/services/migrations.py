@@ -235,6 +235,7 @@ def run_migrations(engine):
                 ("average_cost", "NUMERIC(13, 4) NOT NULL DEFAULT 0"),
                 ("inventory_account_id", "INTEGER"),
                 ("cogs_account_id", "INTEGER"),
+                ("preferred_supplier_id", "INTEGER"),
             ]:
                 if not _column_exists(insp, "products", col):
                     conn.execute(text(

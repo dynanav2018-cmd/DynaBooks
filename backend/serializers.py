@@ -268,6 +268,7 @@ def serialize_product(product):
         "average_cost": _dec(getattr(product, "average_cost", 0)),
         "inventory_account_id": getattr(product, "inventory_account_id", None),
         "cogs_account_id": getattr(product, "cogs_account_id", None),
+        "preferred_supplier_id": getattr(product, "preferred_supplier_id", None),
     }
     return result
 

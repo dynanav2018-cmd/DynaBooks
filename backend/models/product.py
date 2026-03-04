@@ -30,6 +30,7 @@ class Product(CustomBase):
     average_cost: Mapped[Decimal] = mapped_column(Numeric(13, 4), default=0)
     inventory_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cogs_account_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    preferred_supplier_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

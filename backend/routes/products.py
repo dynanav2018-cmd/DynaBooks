@@ -63,6 +63,7 @@ def create_product():
         reorder_point=data.get("reorder_point", 0),
         inventory_account_id=data.get("inventory_account_id"),
         cogs_account_id=data.get("cogs_account_id"),
+        preferred_supplier_id=data.get("preferred_supplier_id"),
     )
     g.session.add(product)
 
@@ -90,6 +91,7 @@ def update_product(product_id):
         "expense_account_id", "tax_id", "product_type",
         "sku", "track_inventory", "reorder_point",
         "inventory_account_id", "cogs_account_id",
+        "preferred_supplier_id",
     ]
     for field in updatable:
         if field in data:
