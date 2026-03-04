@@ -10,7 +10,7 @@ from python_accounting.models import Account, LineItem, Tax, Transaction
 from python_accounting.transactions import ClientInvoice
 
 from backend.models.company_info import CompanyInfo
-from backend.models.contact import Contact
+from backend.models.contact import Contact, TransactionAddress
 from backend.models.transaction_contact import TransactionContact
 from backend.serializers import serialize_transaction
 from backend.services.inventory import (
@@ -81,6 +81,14 @@ def _serialize_with_contact(invoice, session=None):
         data["contact_name"] = contact.name if contact else None
     else:
         data["contact_name"] = None
+    # Include address selections
+    ta = (
+        g.session.query(TransactionAddress)
+        .filter(TransactionAddress.transaction_id == invoice.id)
+        .first()
+    )
+    data["billing_address_id"] = ta.billing_address_id if ta else None
+    data["shipping_address_id"] = ta.shipping_address_id if ta else None
     return data
 
 
@@ -161,6 +169,17 @@ def create_invoice():
                 transaction_id=invoice.id, contact_id=contact_id
             )
             g.session.add(tc)
+
+        # Save address selections
+        billing_addr_id = data.get("billing_address_id")
+        shipping_addr_id = data.get("shipping_address_id")
+        if billing_addr_id or shipping_addr_id:
+            ta = TransactionAddress(
+                transaction_id=invoice.id,
+                billing_address_id=billing_addr_id,
+                shipping_address_id=shipping_addr_id,
+            )
+            g.session.add(ta)
 
         # Auto-post if requested
         if data.get("post", False):
@@ -287,6 +306,23 @@ def update_invoice(invoice_id):
                     transaction_id=invoice.id, contact_id=contact_id
                 )
                 g.session.add(tc)
+
+        # Update address selections
+        if "billing_address_id" in data or "shipping_address_id" in data:
+            conn2 = g.session.connection()
+            conn2.execute(
+                text("DELETE FROM transaction_addresses WHERE transaction_id = :tid"),
+                {"tid": invoice_id},
+            )
+            billing_addr_id = data.get("billing_address_id")
+            shipping_addr_id = data.get("shipping_address_id")
+            if billing_addr_id or shipping_addr_id:
+                ta = TransactionAddress(
+                    transaction_id=invoice.id,
+                    billing_address_id=billing_addr_id,
+                    shipping_address_id=shipping_addr_id,
+                )
+                g.session.add(ta)
 
         # Auto-post if requested
         if data.get("post", False):

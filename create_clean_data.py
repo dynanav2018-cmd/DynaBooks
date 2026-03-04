@@ -17,7 +17,8 @@ from sqlalchemy import create_engine
 from python_accounting.database.session import get_session
 
 from backend.models import CustomBase
-from backend.models.contact import Contact  # noqa: F401
+from backend.models.contact import Contact, ContactAddress, TransactionAddress  # noqa: F401
+from backend.models.bank_reconciliation import BankReconciliation, ReconciliationItem  # noqa: F401
 from backend.models.product import Product  # noqa: F401
 from backend.models.transaction_contact import TransactionContact  # noqa: F401
 from backend.models.company_info import CompanyInfo  # noqa: F401

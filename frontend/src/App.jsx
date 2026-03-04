@@ -14,6 +14,7 @@ import BillDetail from './pages/bills/BillDetail'
 import JournalList from './pages/journals/JournalList'
 import JournalForm from './pages/journals/JournalForm'
 import BankingIndex from './pages/banking/BankingIndex'
+import BankReconciliation from './pages/banking/BankReconciliation'
 import ContactList from './pages/contacts/ContactList'
 import AccountList from './pages/accounts/AccountList'
 import AccountDetail from './pages/accounts/AccountDetail'
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
             <Route path="purchase-orders/:id/edit" element={<PurchaseOrderForm />} />
             <Route path="banking" element={<BankingIndex />} />
+            <Route path="banking/reconciliation" element={<BankReconciliation />} />
             <Route path="contacts" element={<ContactList />} />
             <Route path="accounts" element={<AccountList />} />
             <Route path="accounts/:id" element={<AccountDetail />} />

@@ -176,13 +176,19 @@ def serialize_assignment(assignment):
     }
 
 
-def serialize_contact(contact):
-    return {
+def serialize_contact(contact, addresses=None):
+    result = {
         "id": contact.id,
         "name": contact.name,
         "contact_type": contact.contact_type,
+        "company": getattr(contact, "company", None),
+        "website": getattr(contact, "website", None),
         "email": contact.email,
         "phone": contact.phone,
+        "phone_1": getattr(contact, "phone_1", None),
+        "phone_1_label": getattr(contact, "phone_1_label", None),
+        "phone_2": getattr(contact, "phone_2", None),
+        "phone_2_label": getattr(contact, "phone_2_label", None),
         "address_line_1": contact.address_line_1,
         "address_line_2": contact.address_line_2,
         "city": contact.city,
@@ -190,11 +196,29 @@ def serialize_contact(contact):
         "postal_code": contact.postal_code,
         "country": contact.country,
         "tax_number": contact.tax_number,
+        "payment_terms": getattr(contact, "payment_terms", None) or "30 Days",
         "payment_terms_days": contact.payment_terms_days,
         "notes": contact.notes,
         "is_active": contact.is_active,
         "created_at": contact.created_at.isoformat() if contact.created_at else None,
         "updated_at": contact.updated_at.isoformat() if contact.updated_at else None,
+    }
+    if addresses is not None:
+        result["addresses"] = [serialize_contact_address(a) for a in addresses]
+    return result
+
+
+def serialize_contact_address(addr):
+    return {
+        "id": addr.id,
+        "contact_id": addr.contact_id,
+        "address_type": addr.address_type,
+        "address_line_1": addr.address_line_1,
+        "address_line_2": addr.address_line_2,
+        "city": addr.city,
+        "province_state": addr.province_state,
+        "postal_code": addr.postal_code,
+        "country": addr.country,
     }
 
 

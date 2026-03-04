@@ -17,11 +17,24 @@ const tabs = [
   { key: 'supplier', label: 'Suppliers' },
 ]
 
+const PAYMENT_TERMS_OPTIONS = ['COD', 'Prepaid', '15 Days', '30 Days']
+const PHONE_LABEL_OPTIONS = ['Office', 'Cell', 'Home', 'Toll Free']
+const ADDRESS_TYPE_OPTIONS = [
+  'Mailing Address', 'Office Address', 'Shipping Address', 'Home Address', 'Address',
+]
+
 const emptyForm = {
-  name: '', contact_type: 'client', email: '', phone: '',
-  address_line_1: '', address_line_2: '', city: '', province_state: '',
-  postal_code: '', country: 'CA',
-  tax_number: '', payment_terms_days: 30, notes: '',
+  name: '', contact_type: 'client', company: '', website: '',
+  email: '', phone_1: '', phone_1_label: 'Office',
+  phone_2: '', phone_2_label: '',
+  tax_number: '', payment_terms: '30 Days', notes: '',
+  addresses: [],
+}
+
+const emptyAddress = {
+  address_type: 'Mailing Address',
+  address_line_1: '', address_line_2: '', city: '',
+  province_state: '', postal_code: '', country: 'CA',
 }
 
 export default function ContactList() {
@@ -35,10 +48,19 @@ export default function ContactList() {
 
   const columns = [
     { key: 'name', label: 'Name' },
+    { key: 'company', label: 'Company' },
     { key: 'contact_type', label: 'Type', render: (v) => <StatusBadge status={v} /> },
     { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
-    { key: 'payment_terms_days', label: 'Terms', render: (v) => v ? `${v} days` : '' },
+    {
+      key: 'phone_1', label: 'Phone',
+      render: (_, row) => {
+        const parts = []
+        if (row.phone_1) parts.push(`${row.phone_1_label ? row.phone_1_label + ': ' : ''}${row.phone_1}`)
+        if (row.phone_2) parts.push(`${row.phone_2_label ? row.phone_2_label + ': ' : ''}${row.phone_2}`)
+        return parts.join(' | ') || ''
+      },
+    },
+    { key: 'payment_terms', label: 'Terms' },
     {
       key: 'actions',
       label: '',
@@ -61,26 +83,29 @@ export default function ContactList() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ ...emptyForm, contact_type: typeFilter || 'client' })
+    setForm({ ...emptyForm, contact_type: typeFilter || 'client', addresses: [{ ...emptyAddress }] })
     setModalOpen(true)
   }
 
   const openEdit = (contact) => {
     setEditing(contact)
+    const addrs = (contact.addresses && contact.addresses.length > 0)
+      ? contact.addresses.map(a => ({ ...a }))
+      : [{ ...emptyAddress }]
     setForm({
       name: contact.name,
       contact_type: contact.contact_type,
+      company: contact.company || '',
+      website: contact.website || '',
       email: contact.email || '',
-      phone: contact.phone || '',
-      address_line_1: contact.address_line_1 || '',
-      address_line_2: contact.address_line_2 || '',
-      city: contact.city || '',
-      province_state: contact.province_state || '',
-      postal_code: contact.postal_code || '',
-      country: contact.country || 'CA',
+      phone_1: contact.phone_1 || '',
+      phone_1_label: contact.phone_1_label || 'Office',
+      phone_2: contact.phone_2 || '',
+      phone_2_label: contact.phone_2_label || '',
       tax_number: contact.tax_number || '',
-      payment_terms_days: contact.payment_terms_days || 30,
+      payment_terms: contact.payment_terms || '30 Days',
       notes: contact.notes || '',
+      addresses: addrs,
     })
     setModalOpen(true)
   }
@@ -115,6 +140,22 @@ export default function ContactList() {
 
   const setField = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
+  const updateAddress = (idx, field, value) => {
+    const updated = form.addresses.map((a, i) => i === idx ? { ...a, [field]: value } : a)
+    setForm({ ...form, addresses: updated })
+  }
+
+  const addAddress = () => {
+    // Find first unused address type
+    const usedTypes = form.addresses.map(a => a.address_type)
+    const nextType = ADDRESS_TYPE_OPTIONS.find(t => !usedTypes.includes(t)) || 'Address'
+    setForm({ ...form, addresses: [...form.addresses, { ...emptyAddress, address_type: nextType }] })
+  }
+
+  const removeAddress = (idx) => {
+    setForm({ ...form, addresses: form.addresses.filter((_, i) => i !== idx) })
+  }
+
   if (loading) return <LoadingSpinner />
 
   return (
@@ -143,6 +184,7 @@ export default function ContactList() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Contact' : 'New Contact'} wide>
         <form onSubmit={handleSubmit}>
+          {/* Basic Info */}
           <div className="grid grid-cols-2 gap-4">
             <FormField label="Name" required>
               <Input value={form.name} onChange={setField('name')} required />
@@ -154,37 +196,121 @@ export default function ContactList() {
                 <option value="both">Both</option>
               </Select>
             </FormField>
+            <FormField label="Company">
+              <Input value={form.company} onChange={setField('company')} />
+            </FormField>
+            <FormField label="Website">
+              <Input value={form.website} onChange={setField('website')} placeholder="https://" />
+            </FormField>
             <FormField label="Email">
               <Input type="email" value={form.email} onChange={setField('email')} />
-            </FormField>
-            <FormField label="Phone">
-              <Input value={form.phone} onChange={setField('phone')} />
-            </FormField>
-            <FormField label="Address Line 1">
-              <Input value={form.address_line_1} onChange={setField('address_line_1')} />
-            </FormField>
-            <FormField label="Address Line 2">
-              <Input value={form.address_line_2} onChange={setField('address_line_2')} />
-            </FormField>
-            <FormField label="City">
-              <Input value={form.city} onChange={setField('city')} />
-            </FormField>
-            <FormField label="Province / State">
-              <Input value={form.province_state} onChange={setField('province_state')} />
-            </FormField>
-            <FormField label="Postal Code">
-              <Input value={form.postal_code} onChange={setField('postal_code')} />
-            </FormField>
-            <FormField label="Country">
-              <Input value={form.country} onChange={setField('country')} />
             </FormField>
             <FormField label="Tax Number">
               <Input value={form.tax_number} onChange={setField('tax_number')} />
             </FormField>
-            <FormField label="Payment Terms (days)">
-              <Input type="number" value={form.payment_terms_days} onChange={setField('payment_terms_days')} />
+          </div>
+
+          {/* Phone Numbers */}
+          <div className="mt-4 border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Phone Numbers</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex gap-2">
+                <div className="w-32">
+                  <FormField label="Label">
+                    <Select value={form.phone_1_label} onChange={setField('phone_1_label')}>
+                      <option value="">--</option>
+                      {PHONE_LABEL_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </Select>
+                  </FormField>
+                </div>
+                <div className="flex-1">
+                  <FormField label="Phone 1">
+                    <Input value={form.phone_1} onChange={setField('phone_1')} />
+                  </FormField>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="w-32">
+                  <FormField label="Label">
+                    <Select value={form.phone_2_label} onChange={setField('phone_2_label')}>
+                      <option value="">--</option>
+                      {PHONE_LABEL_OPTIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                    </Select>
+                  </FormField>
+                </div>
+                <div className="flex-1">
+                  <FormField label="Phone 2">
+                    <Input value={form.phone_2} onChange={setField('phone_2')} />
+                  </FormField>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Terms */}
+          <div className="mt-4 grid grid-cols-2 gap-4">
+            <FormField label="Payment Terms">
+              <Select value={form.payment_terms} onChange={setField('payment_terms')}>
+                {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
             </FormField>
           </div>
+
+          {/* Addresses */}
+          <div className="mt-4 border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Addresses</h3>
+              {form.addresses.length < ADDRESS_TYPE_OPTIONS.length && (
+                <button type="button" onClick={addAddress}
+                  className="text-xs text-accent hover:underline">
+                  + Add Address
+                </button>
+              )}
+            </div>
+            {form.addresses.map((addr, idx) => (
+              <div key={idx} className="border rounded-lg p-3 mb-3 bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="w-48">
+                    <Select value={addr.address_type}
+                      onChange={(e) => updateAddress(idx, 'address_type', e.target.value)}>
+                      {ADDRESS_TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </div>
+                  {form.addresses.length > 1 && (
+                    <button type="button" onClick={() => removeAddress(idx)}
+                      className="text-xs text-red-500 hover:underline">Remove</button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField label="Address Line 1">
+                    <Input value={addr.address_line_1}
+                      onChange={(e) => updateAddress(idx, 'address_line_1', e.target.value)} />
+                  </FormField>
+                  <FormField label="Address Line 2">
+                    <Input value={addr.address_line_2}
+                      onChange={(e) => updateAddress(idx, 'address_line_2', e.target.value)} />
+                  </FormField>
+                  <FormField label="City">
+                    <Input value={addr.city}
+                      onChange={(e) => updateAddress(idx, 'city', e.target.value)} />
+                  </FormField>
+                  <FormField label="Province / State">
+                    <Input value={addr.province_state}
+                      onChange={(e) => updateAddress(idx, 'province_state', e.target.value)} />
+                  </FormField>
+                  <FormField label="Postal Code">
+                    <Input value={addr.postal_code}
+                      onChange={(e) => updateAddress(idx, 'postal_code', e.target.value)} />
+                  </FormField>
+                  <FormField label="Country">
+                    <Input value={addr.country}
+                      onChange={(e) => updateAddress(idx, 'country', e.target.value)} />
+                  </FormField>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <FormField label="Notes">
             <Textarea value={form.notes} onChange={setField('notes')} />
           </FormField>

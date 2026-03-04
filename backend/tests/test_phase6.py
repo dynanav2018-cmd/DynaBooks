@@ -307,25 +307,32 @@ def test_company_info_crud(client, session):
 # ── Test 8: Contact address fields ───────────────────────────────
 
 def test_contact_address_fields(client):
-    """Contact with city/province_state/postal_code persists."""
+    """Contact with addresses persists via contact_addresses table."""
     resp = post_json(client, "/api/contacts", {
         "name": "Address Test Client",
         "contact_type": "client",
-        "address_line_1": "456 Oak Ave",
-        "city": "Toronto",
-        "province_state": "ON",
-        "postal_code": "M5V 2H1",
-        "country": "CA",
+        "addresses": [{
+            "address_type": "Mailing Address",
+            "address_line_1": "456 Oak Ave",
+            "city": "Toronto",
+            "province_state": "ON",
+            "postal_code": "M5V 2H1",
+            "country": "CA",
+        }],
     })
     assert resp.status_code == 201, resp.get_json()
     data = resp.get_json()
-    assert data["city"] == "Toronto"
-    assert data["province_state"] == "ON"
-    assert data["postal_code"] == "M5V 2H1"
+    assert len(data["addresses"]) == 1
+    addr = data["addresses"][0]
+    assert addr["city"] == "Toronto"
+    assert addr["province_state"] == "ON"
+    assert addr["postal_code"] == "M5V 2H1"
 
-    # Update city
+    # Update address via sub-route
     contact_id = data["id"]
-    resp = put_json(client, f"/api/contacts/{contact_id}", {
+    addr_id = addr["id"]
+    from flask import Flask
+    resp = put_json(client, f"/api/contacts/{contact_id}/addresses/{addr_id}", {
         "city": "Mississauga",
     })
     assert resp.status_code == 200

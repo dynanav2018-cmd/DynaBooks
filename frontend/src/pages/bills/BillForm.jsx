@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useToast } from '../../hooks/useToast'
 import { useApi } from '../../hooks/useApi'
 import { createBill, fetchBill, updateBill } from '../../api/bills'
-import { fetchContacts } from '../../api/contacts'
+import { fetchContacts, fetchContactAddresses } from '../../api/contacts'
 import { fetchAccounts } from '../../api/accounts'
 import { fetchTaxes } from '../../api/taxes'
 import { fetchProducts } from '../../api/products'
@@ -33,12 +33,15 @@ export default function BillForm() {
 
   const [form, setForm] = useState({
     contact_id: '',
+    billing_address_id: '',
+    shipping_address_id: '',
     transaction_date: todayISO(),
     narration: 'Supplier Bill',
     line_items: [{ ...emptyLine }],
   })
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(!isEdit)
+  const [contactAddresses, setContactAddresses] = useState([])
 
   useEffect(() => {
     if (isEdit) {
@@ -46,6 +49,8 @@ export default function BillForm() {
         const allProds = [...(recProds || []), ...(catProds || [])]
         setForm({
           contact_id: bill.contact_id?.toString() || '',
+          billing_address_id: bill.billing_address_id?.toString() || '',
+          shipping_address_id: bill.shipping_address_id?.toString() || '',
           transaction_date: bill.transaction_date?.split('T')[0] || todayISO(),
           narration: bill.narration || '',
           line_items: bill.line_items.map((li) => {
@@ -60,6 +65,9 @@ export default function BillForm() {
             }
           }),
         })
+        if (bill.contact_id) {
+          fetchContactAddresses(bill.contact_id).then(setContactAddresses).catch(() => {})
+        }
         setLoaded(true)
       }).catch((err) => {
         toast.error(err.message)
@@ -67,6 +75,20 @@ export default function BillForm() {
       })
     }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleContactChange = (contactId) => {
+    setForm(prev => ({ ...prev, contact_id: contactId, billing_address_id: '', shipping_address_id: '' }))
+    if (contactId) {
+      fetchContactAddresses(contactId).then((addrs) => {
+        setContactAddresses(addrs)
+        if (addrs.length > 0) {
+          setForm(prev => ({ ...prev, billing_address_id: addrs[0].id.toString(), shipping_address_id: addrs[0].id.toString() }))
+        }
+      }).catch(() => setContactAddresses([]))
+    } else {
+      setContactAddresses([])
+    }
+  }
 
   const updateLine = (index, field, value) => {
     setForm((prev) => {
@@ -134,6 +156,8 @@ export default function BillForm() {
         narration: form.narration,
         transaction_date: form.transaction_date,
         contact_id: form.contact_id ? parseInt(form.contact_id) : undefined,
+        billing_address_id: form.billing_address_id ? parseInt(form.billing_address_id) : undefined,
+        shipping_address_id: form.shipping_address_id ? parseInt(form.shipping_address_id) : undefined,
         post,
         line_items: form.line_items.map((li) => ({
           narration: li.narration,
@@ -174,10 +198,10 @@ export default function BillForm() {
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <FormField label="Supplier">
-            <Select value={form.contact_id} onChange={(e) => setForm({ ...form, contact_id: e.target.value })}>
+            <Select value={form.contact_id} onChange={(e) => handleContactChange(e.target.value)}>
               <option value="">Select supplier...</option>
               {contacts?.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>
               ))}
             </Select>
           </FormField>
@@ -196,6 +220,38 @@ export default function BillForm() {
             />
           </FormField>
         </div>
+
+        {contactAddresses.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <FormField label="Billing Address">
+              <Select value={form.billing_address_id} onChange={(e) => {
+                const val = e.target.value
+                setForm(prev => ({
+                  ...prev,
+                  billing_address_id: val,
+                  shipping_address_id: prev.shipping_address_id || val,
+                }))
+              }}>
+                <option value="">Select address...</option>
+                {contactAddresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.address_type}: {a.address_line_1}{a.city ? `, ${a.city}` : ''}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+            <FormField label="Shipping Address">
+              <Select value={form.shipping_address_id} onChange={(e) => setForm({ ...form, shipping_address_id: e.target.value })}>
+                <option value="">Same as billing</option>
+                {contactAddresses.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.address_type}: {a.address_line_1}{a.city ? `, ${a.city}` : ''}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+        )}
 
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Line Items</h3>
         <div className="space-y-3">
