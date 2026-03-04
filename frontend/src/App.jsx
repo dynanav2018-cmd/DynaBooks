@@ -35,6 +35,16 @@ export default function App() {
       .catch(() => {})
   }, [])
 
+  // Browser heartbeat — lets the server know a tab is still open
+  useEffect(() => {
+    const ping = () => fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+    ping()
+    const id = setInterval(ping, 5000)
+    const onUnload = () => navigator.sendBeacon('/api/shutdown')
+    window.addEventListener('beforeunload', onUnload)
+    return () => { clearInterval(id); window.removeEventListener('beforeunload', onUnload) }
+  }, [])
+
   return (
     <CompanyProvider>
       <SettingsProvider>
