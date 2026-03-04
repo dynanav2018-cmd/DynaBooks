@@ -105,6 +105,23 @@ def _register_default_company():
     _save_registry(registry)
 
 
+HEARTBEAT_TIMEOUT = 15  # seconds without a heartbeat before auto-shutdown
+
+
+def _start_heartbeat_watchdog():
+    """Background thread: exit the process if the browser stops sending heartbeats."""
+    import time
+    from backend.app import heartbeat_state
+
+    while True:
+        time.sleep(5)
+        if heartbeat_state["active"]:
+            elapsed = time.time() - heartbeat_state["last"]
+            if elapsed > HEARTBEAT_TIMEOUT:
+                _remove_lock()
+                os._exit(0)
+
+
 def main():
     url = f"http://127.0.0.1:{DYNABOOKS_PORT}"
 
@@ -141,6 +158,9 @@ def main():
         webbrowser.open(url)
 
     threading.Thread(target=open_browser, daemon=True).start()
+
+    # Monitor browser heartbeat — auto-shutdown when all tabs close
+    threading.Thread(target=_start_heartbeat_watchdog, daemon=True).start()
 
     # Try to set up system tray icon
     try:

@@ -3,10 +3,14 @@
 import json
 import os
 import sys
+import time
 
 from flask import Flask, g, jsonify, request, send_from_directory
 
 from backend.config import make_session
+
+# Shared heartbeat state (mutable dict so launcher can read it)
+heartbeat_state = {"last": 0.0, "active": False}
 
 
 def create_app(session_factory=None):
@@ -110,6 +114,19 @@ def create_app(session_factory=None):
     @app.route("/api/build-config")
     def build_config():
         return jsonify(_build_cfg)
+
+    # ── Browser heartbeat ──────────────────────────────────────────
+    @app.route("/api/heartbeat", methods=["POST"])
+    def heartbeat():
+        heartbeat_state["last"] = time.time()
+        heartbeat_state["active"] = True
+        return jsonify(ok=True)
+
+    @app.route("/api/shutdown", methods=["POST"])
+    def shutdown():
+        import threading
+        threading.Timer(0.5, lambda: os._exit(0)).start()
+        return jsonify(ok=True)
 
     # ── SPA static file serving ──────────────────────────────────────
 
