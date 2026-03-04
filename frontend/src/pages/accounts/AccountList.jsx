@@ -17,12 +17,22 @@ const ACCOUNT_TYPES = [
   'Direct Expense', 'Overhead Expense', 'Other Expense', 'Reconciliation',
 ]
 
+const TYPE_GROUP_MAP = {
+  'Non Current Asset': 'Asset', 'Contra Asset': 'Contra Asset', 'Inventory': 'Asset',
+  'Bank': 'Asset', 'Current Asset': 'Asset', 'Receivable': 'Asset',
+  'Non Current Liability': 'Liability', 'Control': 'Liability',
+  'Current Liability': 'Liability', 'Payable': 'Liability',
+  'Equity': 'Equity', 'Operating Revenue': 'Revenue', 'Non Operating Revenue': 'Revenue',
+  'Operating Expense': 'Expense', 'Direct Expense': 'Expense',
+  'Overhead Expense': 'Expense', 'Other Expense': 'Expense', 'Reconciliation': 'Expense',
+}
+
 export default function AccountList() {
   const [filterType, setFilterType] = useState('')
   const { data: accounts, loading, refetch } = useApi(() => fetchAccounts(filterType), [filterType])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', account_type: '', description: '' })
+  const [form, setForm] = useState({ name: '', account_code: '', account_type: ACCOUNT_TYPES[0], description: '' })
   const toast = useToast()
 
   const columns = [
@@ -48,13 +58,20 @@ export default function AccountList() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ name: '', account_type: ACCOUNT_TYPES[0], description: '' })
+    setForm({ name: '', account_code: '', account_type: ACCOUNT_TYPES[0], description: '' })
     setModalOpen(true)
   }
 
   const openEdit = (account) => {
     setEditing(account)
-    setForm({ name: account.name, account_type: account.account_type, description: account.description || '' })
+    let desc = account.description || ''
+    if (desc.startsWith('Spec #')) desc = ''
+    setForm({
+      name: account.name,
+      account_code: account.account_code || '',
+      account_type: account.account_type || ACCOUNT_TYPES[0],
+      description: desc,
+    })
     setModalOpen(true)
   }
 
@@ -62,7 +79,12 @@ export default function AccountList() {
     e.preventDefault()
     try {
       if (editing) {
-        await updateAccount(editing.id, { name: form.name, description: form.description })
+        await updateAccount(editing.id, {
+          name: form.name,
+          account_code: form.account_code,
+          account_type: form.account_type,
+          description: form.description,
+        })
         toast.success('Account updated')
       } else {
         await createAccount(form)
@@ -104,16 +126,27 @@ export default function AccountList() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Account' : 'New Account'}>
         <form onSubmit={handleSubmit}>
-          <FormField label="Name" required>
+          <FormField label="Account #">
+            <Input
+              type="number"
+              value={form.account_code}
+              onChange={(e) => setForm({ ...form, account_code: e.target.value })}
+              placeholder={editing ? '' : 'Leave blank to auto-generate'}
+            />
+          </FormField>
+          <FormField label="Account Name" required>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           </FormField>
-          {!editing && (
-            <FormField label="Account Type" required>
-              <Select value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })} required>
-                {ACCOUNT_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </Select>
+          <FormField label="Account Type" required>
+            <Select value={form.account_type} onChange={(e) => setForm({ ...form, account_type: e.target.value })} required>
+              {ACCOUNT_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </Select>
+          </FormField>
+          {editing && (
+            <FormField label="Category">
+              <Input value={TYPE_GROUP_MAP[form.account_type] || form.account_type} disabled className="bg-gray-50" />
             </FormField>
           )}
           <FormField label="Description">

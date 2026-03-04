@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
+from sqlalchemy import text
 
 from python_accounting.models import Account
 
@@ -78,6 +79,8 @@ def create_account():
     if not currency_id:
         currency_id = g.session.entity.currency_id
 
+    account_code = data.get("account_code")
+
     try:
         account = Account(
             name=name,
@@ -86,8 +89,16 @@ def create_account():
             entity_id=g.session.entity.id,
             description=data.get("description"),
         )
+        if account_code:
+            account.account_code = int(account_code)
         g.session.add(account)
         g.session.flush()
+        # Ensure account_code persists even if the library overrode it
+        if account_code and account.account_code != int(account_code):
+            g.session.connection().execute(
+                text("UPDATE account SET account_code = :code WHERE id = :id"),
+                {"code": int(account_code), "id": account.id},
+            )
         g.session.commit()
     except Exception as e:
         g.session.rollback()
@@ -146,13 +157,35 @@ def update_account(account_id):
     if not data:
         return jsonify(error="Request body required"), 400
 
+    # ORM-safe updates
     if "name" in data:
         account.name = data["name"]
     if "description" in data:
         account.description = data["description"]
 
+    # Direct SQL for fields the library validates/regenerates
+    sql_sets = []
+    sql_params = {"id": account_id}
+    if "account_code" in data and data["account_code"] not in (None, ""):
+        sql_sets.append("account_code = :code")
+        sql_params["code"] = int(data["account_code"])
+    if "account_type" in data:
+        at = _parse_account_type(data["account_type"])
+        if at is None:
+            return jsonify(error=f"Invalid account type: {data['account_type']}"), 400
+        sql_sets.append("account_type = :atype")
+        sql_params["atype"] = at.name
+
     try:
+        if sql_sets:
+            g.session.connection().execute(
+                text(f"UPDATE account SET {', '.join(sql_sets)} WHERE id = :id"),
+                sql_params,
+            )
         g.session.commit()
+        # Refresh to pick up raw SQL changes
+        g.session.expire(account)
+        account = g.session.get(Account, account_id)
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
