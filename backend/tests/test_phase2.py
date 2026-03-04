@@ -150,8 +150,9 @@ def test_contacts_crud(client):
         "name": "Acme Corp",
         "contact_type": "client",
         "email": "info@acme.com",
-        "phone": "555-1234",
-        "payment_terms_days": 45,
+        "phone_1": "555-1234",
+        "phone_1_label": "Office",
+        "payment_terms": "30 Days",
     })
     assert resp.status_code == 201
     contact = resp.get_json()
@@ -166,10 +167,10 @@ def test_contacts_crud(client):
 
     # Update
     resp = put_json(client, f"/api/contacts/{contact_id}", {
-        "phone": "555-9999",
+        "phone_1": "555-9999",
     })
     assert resp.status_code == 200
-    assert resp.get_json()["phone"] == "555-9999"
+    assert resp.get_json()["phone_1"] == "555-9999"
 
     # Deactivate
     resp = client.delete(f"/api/contacts/{contact_id}")

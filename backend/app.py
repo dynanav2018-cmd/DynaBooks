@@ -80,6 +80,7 @@ def create_app(session_factory=None):
     from backend.routes.closing import bp as closing_bp
     from backend.routes.recurring_journals import bp as recurring_journals_bp
     from backend.routes.companies import bp as companies_bp
+    from backend.routes.reconciliation import bp as reconciliation_bp
 
     app.register_blueprint(company_bp)
     app.register_blueprint(accounts_bp)
@@ -97,6 +98,7 @@ def create_app(session_factory=None):
     app.register_blueprint(closing_bp)
     app.register_blueprint(recurring_journals_bp)
     app.register_blueprint(companies_bp)
+    app.register_blueprint(reconciliation_bp)
 
     # ── Build config endpoint ────────────────────────────────────────
     if getattr(sys, 'frozen', False):

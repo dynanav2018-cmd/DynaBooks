@@ -177,6 +177,112 @@ def run_migrations(engine):
                 )
             """))
 
+        # Contact table: add company, website, phone fields, payment_terms
+        if "contacts" in tables:
+            for col, col_def in [
+                ("company", "VARCHAR(255)"),
+                ("website", "VARCHAR(255)"),
+                ("phone_1", "VARCHAR(50)"),
+                ("phone_1_label", "VARCHAR(20)"),
+                ("phone_2", "VARCHAR(50)"),
+                ("phone_2_label", "VARCHAR(20)"),
+                ("payment_terms", "VARCHAR(20) DEFAULT '30 Days'"),
+            ]:
+                if not _column_exists(insp, "contacts", col):
+                    conn.execute(text(
+                        f"ALTER TABLE contacts ADD COLUMN {col} {col_def}"
+                    ))
+
+            # Migrate existing phone data to phone_1
+            if _column_exists(insp, "contacts", "phone_1"):
+                conn.execute(text(
+                    "UPDATE contacts SET phone_1 = phone, phone_1_label = 'Office'"
+                    " WHERE phone IS NOT NULL AND phone != ''"
+                    " AND (phone_1 IS NULL OR phone_1 = '')"
+                ))
+
+            # Migrate payment_terms_days to payment_terms string
+            if _column_exists(insp, "contacts", "payment_terms"):
+                conn.execute(text(
+                    "UPDATE contacts SET payment_terms = '30 Days'"
+                    " WHERE payment_terms IS NULL"
+                    " AND payment_terms_days = 30"
+                ))
+                conn.execute(text(
+                    "UPDATE contacts SET payment_terms = '15 Days'"
+                    " WHERE payment_terms IS NULL"
+                    " AND payment_terms_days = 15"
+                ))
+
+        # Contact addresses table: create if missing
+        if not _table_exists(insp, "contact_addresses"):
+            conn.execute(text("""
+                CREATE TABLE contact_addresses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    contact_id INTEGER NOT NULL,
+                    address_type VARCHAR(30) NOT NULL DEFAULT 'Address',
+                    address_line_1 VARCHAR(500),
+                    address_line_2 VARCHAR(500),
+                    city VARCHAR(255),
+                    province_state VARCHAR(255),
+                    postal_code VARCHAR(20),
+                    country VARCHAR(100),
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+            """))
+
+            # Migrate existing contact address data into contact_addresses
+            if "contacts" in tables:
+                conn.execute(text("""
+                    INSERT INTO contact_addresses
+                        (contact_id, address_type, address_line_1, address_line_2,
+                         city, province_state, postal_code, country,
+                         created_at, updated_at)
+                    SELECT id, 'Mailing Address', address_line_1, address_line_2,
+                           city, province_state, postal_code, country,
+                           created_at, updated_at
+                    FROM contacts
+                    WHERE address_line_1 IS NOT NULL AND address_line_1 != ''
+                """))
+
+        # Transaction addresses table (billing/shipping for invoices/bills)
+        if not _table_exists(insp, "transaction_addresses"):
+            conn.execute(text("""
+                CREATE TABLE transaction_addresses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    transaction_id INTEGER NOT NULL UNIQUE,
+                    billing_address_id INTEGER,
+                    shipping_address_id INTEGER
+                )
+            """))
+
+        # Bank reconciliation tables
+        if not _table_exists(insp, "bank_reconciliations"):
+            conn.execute(text("""
+                CREATE TABLE bank_reconciliations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    account_id INTEGER NOT NULL,
+                    period_year INTEGER NOT NULL,
+                    period_month INTEGER NOT NULL,
+                    statement_balance NUMERIC(13, 4) DEFAULT 0,
+                    status VARCHAR(20) DEFAULT 'draft',
+                    completed_at DATETIME,
+                    created_at DATETIME,
+                    updated_at DATETIME
+                )
+            """))
+
+        if not _table_exists(insp, "reconciliation_items"):
+            conn.execute(text("""
+                CREATE TABLE reconciliation_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    reconciliation_id INTEGER NOT NULL,
+                    ledger_id INTEGER NOT NULL,
+                    is_cleared BOOLEAN DEFAULT 0
+                )
+            """))
+
         # Fix account names: replace double hyphens with em dashes
         if "account" in tables:
             for old, new in [

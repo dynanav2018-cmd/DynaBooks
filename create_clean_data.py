@@ -17,9 +17,12 @@ from sqlalchemy import create_engine
 from python_accounting.database.session import get_session
 
 from backend.models import CustomBase
-from backend.models.contact import Contact  # noqa: F401
+from backend.models.contact import Contact, ContactAddress, TransactionAddress  # noqa: F401
+from backend.models.bank_reconciliation import BankReconciliation, ReconciliationItem  # noqa: F401
 from backend.models.product import Product  # noqa: F401
 from backend.models.transaction_contact import TransactionContact  # noqa: F401
+from backend.models.company_info import CompanyInfo  # noqa: F401
+from backend.models.recurring_journal import RecurringJournal  # noqa: F401
 from backend.services.seeder import CHART_OF_ACCOUNTS
 
 DIST_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist_data")
@@ -88,6 +91,10 @@ def create_clean_data():
     account_count = session.query(Account).count()
     tax_count = session.query(Tax).count()
     session.close()
+
+    # Run migrations to add any extra columns/tables
+    from backend.services.migrations import run_migrations
+    run_migrations(eng)
 
     # Clean up temp file if it was created
     if os.path.exists("temp_unused.db"):
