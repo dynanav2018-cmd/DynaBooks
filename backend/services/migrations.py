@@ -34,7 +34,12 @@ def _table_exists(inspector, table_name):
 
 
 def _add_account_if_missing(conn, name, account_type, description):
-    """Insert an account if one with the same name does not already exist."""
+    """Insert an account if one with the same name does not already exist.
+
+    python-accounting uses table inheritance: each Account row needs a
+    matching ``recyclable`` row (with the same ``id``).  We insert into
+    ``recyclable`` first to obtain the correct id.
+    """
     row = conn.execute(
         text("SELECT id FROM account WHERE name = :n"),
         {"n": name},
@@ -47,14 +52,30 @@ def _add_account_if_missing(conn, name, account_type, description):
     )).fetchone()
     if not entity_row:
         return
+    # Auto-generate the next account_code for this account_type
+    max_code_row = conn.execute(
+        text("SELECT MAX(account_code) FROM account WHERE account_type = :atype"),
+        {"atype": account_type},
+    ).fetchone()
+    next_code = (max_code_row[0] or 0) + 1 if max_code_row and max_code_row[0] else 1
+
+    # Insert recyclable parent row first (table inheritance)
     conn.execute(text(
-        "INSERT INTO account (name, account_type, description,"
-        " currency_id, entity_id)"
-        " VALUES (:name, :atype, :desc, :cid, :eid)"
+        "INSERT INTO recyclable (recycled_type, created_at, updated_at)"
+        " VALUES ('Account', datetime('now'), datetime('now'))"
+    ))
+    new_id = conn.execute(text("SELECT last_insert_rowid()")).fetchone()[0]
+
+    conn.execute(text(
+        "INSERT INTO account (id, name, account_type, description,"
+        " account_code, currency_id, entity_id)"
+        " VALUES (:id, :name, :atype, :desc, :code, :cid, :eid)"
     ), {
+        "id": new_id,
         "name": name,
         "atype": account_type,
         "desc": description,
+        "code": next_code,
         "cid": entity_row[1],
         "eid": entity_row[0],
     })
@@ -284,22 +305,22 @@ def run_migrations(engine):
         # Fix Inventory account type: NON_CURRENT_ASSET -> INVENTORY
         if "account" in tables:
             conn.execute(text(
-                "UPDATE account SET account_type = 'Inventory'"
+                "UPDATE account SET account_type = 'INVENTORY'"
                 " WHERE name = 'Inventory'"
-                " AND account_type = 'Non Current Asset'"
+                " AND account_type = 'NON_CURRENT_ASSET'"
             ))
 
         # Add missing accounts for inventory module
         if "account" in tables:
             _add_account_if_missing(conn, "Inventory Adjustments",
-                                    "Non Operating Revenue", "Spec #4910")
+                                    "NON_OPERATING_REVENUE", "Spec #4910")
             _add_account_if_missing(conn, "Inventory Write-Off",
-                                    "Direct Expense", "Spec #5010")
+                                    "DIRECT_EXPENSE", "Spec #5010")
 
         # Fix account names: replace double hyphens with em dashes
         if "account" in tables:
             for old, new in [
-                ("Product Sales -- GPS Systems", "Product Sales — GPS Systems"),
+                ("Product Sales -- Gps Systems", "Product Sales — Gps Systems"),
                 ("Product Sales -- Accessories", "Product Sales — Accessories"),
                 ("Service Revenue -- Subscriptions", "Service Revenue — Subscriptions"),
                 ("Service Revenue -- Support", "Service Revenue — Support"),

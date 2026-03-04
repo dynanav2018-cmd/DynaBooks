@@ -166,7 +166,7 @@ def create_bill():
             )
             if inv_items:
                 for li, product in inv_items:
-                    unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
+                    unit_cost = Decimal(str(li.amount))
                     record_stock_purchase(
                         g.session,
                         product,
@@ -286,7 +286,7 @@ def update_bill(bill_id):
             )
             if inv_items:
                 for li, product in inv_items:
-                    unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
+                    unit_cost = Decimal(str(li.amount))
                     record_stock_purchase(
                         g.session,
                         product,
