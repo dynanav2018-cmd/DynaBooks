@@ -44,3 +44,15 @@ export const deleteContact = (id) =>
 
 export const fetchContactAddresses = (contactId) =>
   apiFetch(`/contacts/${contactId}/addresses`)
+
+export const importContacts = (file, contactType) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (contactType) formData.append('contact_type', contactType)
+  return fetch('/api/contacts/import', { method: 'POST', body: formData })
+    .then(async (res) => {
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Import failed')
+      return data
+    })
+}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
-import { fetchContacts, createContact, updateContact, deleteContact } from '../../api/contacts'
+import { fetchContacts, createContact, updateContact, deleteContact, importContacts } from '../../api/contacts'
 import DataTable from '../../components/shared/DataTable'
 import PageHeader from '../../components/shared/PageHeader'
 import Button from '../../components/shared/Button'
@@ -44,6 +44,10 @@ export default function ContactList() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importType, setImportType] = useState('')
+  const [importing, setImporting] = useState(false)
   const toast = useToast()
 
   const columns = [
@@ -138,6 +142,32 @@ export default function ContactList() {
     }
   }
 
+  const openImport = () => {
+    setImportFile(null)
+    setImportType(typeFilter || '')
+    setImportOpen(true)
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+    setImporting(true)
+    try {
+      const result = await importContacts(importFile, importType || undefined)
+      const msg = `Imported ${result.created} contact${result.created !== 1 ? 's' : ''}`
+        + (result.skipped ? `, ${result.skipped} skipped (no name)` : '')
+      toast.success(msg)
+      if (result.errors?.length) {
+        toast.error(`${result.errors.length} row error(s): ${result.errors[0]}`)
+      }
+      setImportOpen(false)
+      refetch()
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const setField = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
   const updateAddress = (idx, field, value) => {
@@ -161,7 +191,10 @@ export default function ContactList() {
   return (
     <div>
       <PageHeader title="Contacts">
-        <Button onClick={openCreate}>New Contact</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={openImport}>Import CSV</Button>
+          <Button onClick={openCreate}>New Contact</Button>
+        </div>
       </PageHeader>
 
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
@@ -319,6 +352,54 @@ export default function ContactList() {
             <Button type="submit">{editing ? 'Update' : 'Create'}</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Import CSV Modal */}
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Contacts from CSV">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Upload a CSV file with contact data. Required column: <strong>name</strong>.
+            Optional columns: company, email, phone_1, phone_1_label, phone_2, phone_2_label,
+            website, tax_number, payment_terms, notes, contact_type,
+            address_line_1, address_line_2, city, province_state, postal_code, country.
+          </p>
+
+          <FormField label="Import As Type">
+            <Select value={importType} onChange={(e) => setImportType(e.target.value)}>
+              <option value="">Use CSV column (or default to Client)</option>
+              <option value="client">Client</option>
+              <option value="supplier">Supplier</option>
+              <option value="both">Both</option>
+            </Select>
+          </FormField>
+
+          <FormField label="CSV File" required>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setImportFile(e.target.files[0] || null)}
+              className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
+                file:rounded-md file:border-0 file:text-sm file:font-medium
+                file:bg-navy file:text-white hover:file:bg-accent cursor-pointer"
+            />
+          </FormField>
+
+          <div className="flex items-center justify-between pt-2">
+            <a
+              href="/api/contacts/import/template"
+              download="contacts_template.csv"
+              className="text-sm text-accent hover:underline"
+            >
+              Download CSV Template
+            </a>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
+              <Button onClick={handleImport} disabled={!importFile || importing}>
+                {importing ? 'Importing...' : 'Import'}
+              </Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   )
