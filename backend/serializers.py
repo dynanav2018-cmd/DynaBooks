@@ -248,6 +248,8 @@ def serialize_contact(contact, addresses=None):
         "tax_number": contact.tax_number,
         "payment_terms": getattr(contact, "payment_terms", None) or "30 Days",
         "payment_terms_days": contact.payment_terms_days,
+        "default_tax_id": getattr(contact, "default_tax_id", None),
+        "default_tax_id_2": getattr(contact, "default_tax_id_2", None),
         "notes": contact.notes,
         "is_active": contact.is_active,
         "created_at": contact.created_at.isoformat() if contact.created_at else None,

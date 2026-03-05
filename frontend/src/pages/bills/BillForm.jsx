@@ -82,6 +82,19 @@ export default function BillForm() {
   const handleContactChange = (contactId) => {
     setForm(prev => ({ ...prev, contact_id: contactId, billing_address_id: '', shipping_address_id: '' }))
     if (contactId) {
+      const contact = contacts?.find(c => c.id === parseInt(contactId))
+      if (contact) {
+        const defTax1 = contact.default_tax_id?.toString() || ''
+        const defTax2 = contact.default_tax_id_2?.toString() || ''
+        setForm(prev => ({
+          ...prev,
+          line_items: prev.line_items.map(li => ({
+            ...li,
+            tax_id: li.tax_id || defTax1,
+            tax_id_2: li.tax_id_2 || defTax2,
+          })),
+        }))
+      }
       fetchContactAddresses(contactId).then((addrs) => {
         setContactAddresses(addrs)
         if (addrs.length > 0) {
@@ -124,7 +137,13 @@ export default function BillForm() {
   }
 
   const addLine = () => {
-    setForm((prev) => ({ ...prev, line_items: [...prev.line_items, { ...emptyLine }] }))
+    const contact = form.contact_id ? contacts?.find(c => c.id === parseInt(form.contact_id)) : null
+    const newLine = {
+      ...emptyLine,
+      tax_id: contact?.default_tax_id?.toString() || '',
+      tax_id_2: contact?.default_tax_id_2?.toString() || '',
+    }
+    setForm((prev) => ({ ...prev, line_items: [...prev.line_items, newLine] }))
   }
 
   const removeLine = (index) => {
@@ -137,22 +156,31 @@ export default function BillForm() {
 
   const totals = useMemo(() => {
     let subtotal = 0
-    let taxTotal = 0
-    const taxRates = {}
-    taxes?.forEach((t) => { taxRates[t.id] = t.rate })
+    const taxMap = {}
+    const taxInfo = {}
+    taxes?.forEach((t) => { taxInfo[t.id] = { rate: t.rate, name: t.name } })
 
     form.line_items.forEach((li) => {
       const lineAmount = (parseFloat(li.amount) || 0) * (parseFloat(li.quantity) || 0)
       subtotal += lineAmount
-      if (li.tax_id && taxRates[li.tax_id]) {
-        taxTotal += lineAmount * taxRates[li.tax_id] / 100
+      if (li.tax_id && taxInfo[li.tax_id]) {
+        const tid = li.tax_id
+        taxMap[tid] = (taxMap[tid] || 0) + lineAmount * taxInfo[tid].rate / 100
       }
-      if (li.tax_id_2 && taxRates[li.tax_id_2]) {
-        taxTotal += lineAmount * taxRates[li.tax_id_2] / 100
+      if (li.tax_id_2 && taxInfo[li.tax_id_2]) {
+        const tid = li.tax_id_2
+        taxMap[tid] = (taxMap[tid] || 0) + lineAmount * taxInfo[tid].rate / 100
       }
     })
 
-    return { subtotal, taxTotal, total: subtotal + taxTotal }
+    const taxLines = Object.entries(taxMap).map(([tid, amount]) => ({
+      name: taxInfo[tid]?.name || 'Tax',
+      rate: taxInfo[tid]?.rate,
+      amount,
+    }))
+    const taxTotal = taxLines.reduce((sum, t) => sum + t.amount, 0)
+
+    return { subtotal, taxLines, taxTotal, total: subtotal + taxTotal }
   }, [form.line_items, taxes])
 
   const handleSubmit = async (post = false) => {
@@ -397,10 +425,18 @@ export default function BillForm() {
               <span>Subtotal</span>
               <span>{fmtCurrency(totals.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
-              <span>Tax</span>
-              <span>{fmtCurrency(totals.taxTotal)}</span>
-            </div>
+            {totals.taxLines.map((t, i) => (
+              <div key={i} className="flex justify-between text-gray-600">
+                <span>{t.name} ({t.rate}%)</span>
+                <span>{fmtCurrency(t.amount)}</span>
+              </div>
+            ))}
+            {totals.taxLines.length === 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Tax</span>
+                <span>{fmtCurrency(0)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-gray-900 text-base border-t border-gray-200 pt-2">
               <span>Total</span>
               <span>{fmtCurrency(totals.total)}</span>

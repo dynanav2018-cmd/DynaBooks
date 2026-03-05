@@ -35,6 +35,8 @@ class Contact(CustomBase):
     payment_terms: Mapped[str | None] = mapped_column(
         String(20), nullable=True, default="30 Days"
     )
+    default_tax_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    default_tax_id_2: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(

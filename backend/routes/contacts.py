@@ -1,5 +1,8 @@
 """Client & Supplier contacts routes."""
 
+import csv
+import io
+
 from flask import Blueprint, g, jsonify, request
 
 from backend.models.contact import Contact, ContactAddress
@@ -67,6 +70,8 @@ def create_contact():
         phone_2_label=data.get("phone_2_label"),
         tax_number=data.get("tax_number"),
         payment_terms=data.get("payment_terms", "30 Days"),
+        default_tax_id=data.get("default_tax_id"),
+        default_tax_id_2=data.get("default_tax_id_2"),
         notes=data.get("notes"),
     )
     g.session.add(contact)
@@ -110,7 +115,8 @@ def update_contact(contact_id):
     updatable = [
         "name", "contact_type", "company", "website", "email",
         "phone_1", "phone_1_label", "phone_2", "phone_2_label",
-        "tax_number", "payment_terms", "notes",
+        "tax_number", "payment_terms", "default_tax_id", "default_tax_id_2",
+        "notes",
     ]
     for field in updatable:
         if field in data:
@@ -143,6 +149,146 @@ def delete_contact(contact_id):
         return jsonify(error=str(e)), 400
 
     return jsonify(message="Contact deactivated"), 200
+
+
+# ── CSV Import ─────────────────────────────────────────────────────
+
+# Fields that map from CSV columns to Contact model attributes
+CONTACT_CSV_FIELDS = [
+    "name", "contact_type", "company", "website", "email",
+    "phone_1", "phone_1_label", "phone_2", "phone_2_label",
+    "tax_number", "payment_terms", "notes",
+    "address_line_1", "address_line_2", "city",
+    "province_state", "postal_code", "country",
+]
+
+
+@bp.route("/contacts/import", methods=["POST"])
+def import_contacts():
+    """Import contacts from a CSV file.
+
+    Expects multipart/form-data with:
+      - file: the CSV file
+      - contact_type (optional): override type for all rows (client/supplier/both)
+    """
+    if "file" not in request.files:
+        return jsonify(error="No file uploaded"), 400
+
+    file = request.files["file"]
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        return jsonify(error="File must be a .csv"), 400
+
+    override_type = request.form.get("contact_type")
+    if override_type and override_type not in ("client", "supplier", "both"):
+        return jsonify(error="contact_type must be client, supplier, or both"), 400
+
+    try:
+        stream = io.StringIO(file.stream.read().decode("utf-8-sig"))
+        reader = csv.DictReader(stream)
+    except Exception as e:
+        return jsonify(error=f"Failed to read CSV: {e}"), 400
+
+    # Normalise header names: strip, lowercase, replace spaces with _
+    if reader.fieldnames:
+        reader.fieldnames = [
+            f.strip().lower().replace(" ", "_").replace("/", "_")
+            for f in reader.fieldnames
+        ]
+
+    created = 0
+    skipped = 0
+    errors = []
+
+    for row_num, row in enumerate(reader, start=2):  # row 1 is header
+        # Strip whitespace from values
+        row = {k: (v.strip() if v else "") for k, v in row.items()}
+
+        name = row.get("name", "")
+        if not name:
+            skipped += 1
+            continue
+
+        # Determine contact_type
+        ct = override_type
+        if not ct:
+            raw_type = row.get("contact_type", "").lower()
+            if raw_type in ("client", "supplier", "both"):
+                ct = raw_type
+            else:
+                ct = "client"
+
+        try:
+            contact = Contact(
+                name=name,
+                contact_type=ct,
+                company=row.get("company", "") or None,
+                website=row.get("website", "") or None,
+                email=row.get("email", "") or None,
+                phone_1=row.get("phone_1", "") or None,
+                phone_1_label=row.get("phone_1_label", "") or None,
+                phone_2=row.get("phone_2", "") or None,
+                phone_2_label=row.get("phone_2_label", "") or None,
+                tax_number=row.get("tax_number", "") or None,
+                payment_terms=row.get("payment_terms", "") or "30 Days",
+                notes=row.get("notes", "") or None,
+            )
+            g.session.add(contact)
+            g.session.flush()
+
+            # Create address if any address field is present
+            addr1 = row.get("address_line_1", "")
+            city = row.get("city", "")
+            if addr1 or city:
+                addr = ContactAddress(
+                    contact_id=contact.id,
+                    address_type="Mailing Address",
+                    address_line_1=addr1 or None,
+                    address_line_2=row.get("address_line_2", "") or None,
+                    city=city or None,
+                    province_state=row.get("province_state", "") or None,
+                    postal_code=row.get("postal_code", "") or None,
+                    country=row.get("country", "") or "CA",
+                )
+                g.session.add(addr)
+
+            created += 1
+        except Exception as e:
+            errors.append(f"Row {row_num} ({name}): {e}")
+            continue
+
+    try:
+        g.session.commit()
+    except Exception as e:
+        g.session.rollback()
+        return jsonify(error=f"Database error: {e}"), 400
+
+    result = {"created": created, "skipped": skipped}
+    if errors:
+        result["errors"] = errors
+    return jsonify(result), 201
+
+
+@bp.route("/contacts/import/template", methods=["GET"])
+def import_template():
+    """Return a CSV template with the expected column headers."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(CONTACT_CSV_FIELDS)
+    # Write one example row
+    writer.writerow([
+        "John Smith", "client", "Smith Corp", "https://smithcorp.ca",
+        "john@smithcorp.ca", "555-0100", "Office", "555-0101", "Cell",
+        "123456789", "30 Days", "",
+        "123 Main St", "Suite 200", "Toronto",
+        "ON", "M5V 1A1", "CA",
+    ])
+
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=contacts_template.csv"},
+    )
 
 
 # ── Address sub-routes ──────────────────────────────────────────────

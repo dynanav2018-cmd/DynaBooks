@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
-import { fetchContacts, createContact, updateContact, deleteContact } from '../../api/contacts'
+import { fetchContacts, createContact, updateContact, deleteContact, importContacts } from '../../api/contacts'
+import { fetchTaxes } from '../../api/taxes'
 import DataTable from '../../components/shared/DataTable'
 import PageHeader from '../../components/shared/PageHeader'
 import Button from '../../components/shared/Button'
@@ -27,8 +28,9 @@ const emptyForm = {
   name: '', contact_type: 'client', company: '', website: '',
   email: '', phone_1: '', phone_1_label: 'Office',
   phone_2: '', phone_2_label: '',
-  tax_number: '', payment_terms: '30 Days', notes: '',
-  addresses: [],
+  tax_number: '', payment_terms: '30 Days',
+  default_tax_id: '', default_tax_id_2: '',
+  notes: '', addresses: [],
 }
 
 const emptyAddress = {
@@ -41,9 +43,14 @@ export default function ContactList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const typeFilter = searchParams.get('type') || ''
   const { data: contacts, loading, refetch } = useApi(() => fetchContacts(typeFilter), [typeFilter])
+  const { data: taxes } = useApi(fetchTaxes, [])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState(null)
+  const [importType, setImportType] = useState('')
+  const [importing, setImporting] = useState(false)
   const toast = useToast()
 
   const columns = [
@@ -104,20 +111,53 @@ export default function ContactList() {
       phone_2_label: contact.phone_2_label || '',
       tax_number: contact.tax_number || '',
       payment_terms: contact.payment_terms || '30 Days',
+      default_tax_id: contact.default_tax_id?.toString() || '',
+      default_tax_id_2: contact.default_tax_id_2?.toString() || '',
       notes: contact.notes || '',
       addresses: addrs,
     })
     setModalOpen(true)
   }
 
+  const openImport = () => {
+    setImportFile(null)
+    setImportType(typeFilter || '')
+    setImportOpen(true)
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+    setImporting(true)
+    try {
+      const result = await importContacts(importFile, importType || undefined)
+      const msg = `Imported ${result.created} contact${result.created !== 1 ? 's' : ''}`
+        + (result.skipped ? `, ${result.skipped} skipped (no name)` : '')
+      toast.success(msg)
+      if (result.errors?.length) {
+        toast.error(`${result.errors.length} row error(s): ${result.errors[0]}`)
+      }
+      setImportOpen(false)
+      refetch()
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const payload = {
+      ...form,
+      default_tax_id: form.default_tax_id ? parseInt(form.default_tax_id) : null,
+      default_tax_id_2: form.default_tax_id_2 ? parseInt(form.default_tax_id_2) : null,
+    }
     try {
       if (editing) {
-        await updateContact(editing.id, form)
+        await updateContact(editing.id, payload)
         toast.success('Contact updated')
       } else {
-        await createContact(form)
+        await createContact(payload)
         toast.success('Contact created')
       }
       setModalOpen(false)
@@ -161,7 +201,10 @@ export default function ContactList() {
   return (
     <div>
       <PageHeader title="Contacts">
-        <Button onClick={openCreate}>New Contact</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={openImport}>Import CSV</Button>
+          <Button onClick={openCreate}>New Contact</Button>
+        </div>
       </PageHeader>
 
       <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
@@ -247,13 +290,32 @@ export default function ContactList() {
             </div>
           </div>
 
-          {/* Payment Terms */}
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <FormField label="Payment Terms">
-              <Select value={form.payment_terms} onChange={setField('payment_terms')}>
-                {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
+          {/* Payment Terms & Default Taxes */}
+          <div className="mt-4 border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Defaults</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <FormField label="Payment Terms">
+                <Select value={form.payment_terms} onChange={setField('payment_terms')}>
+                  {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Default Tax 1">
+                <Select value={form.default_tax_id} onChange={setField('default_tax_id')}>
+                  <option value="">None</option>
+                  {taxes?.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Default Tax 2">
+                <Select value={form.default_tax_id_2} onChange={setField('default_tax_id_2')}>
+                  <option value="">None</option>
+                  {taxes?.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
           </div>
 
           {/* Addresses */}
@@ -319,6 +381,54 @@ export default function ContactList() {
             <Button type="submit">{editing ? 'Update' : 'Create'}</Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Import CSV Modal */}
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Contacts from CSV">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Upload a CSV file with contact data. Required column: <strong>name</strong>.
+            Optional columns: company, email, phone_1, phone_1_label, phone_2, phone_2_label,
+            website, tax_number, payment_terms, notes, contact_type,
+            address_line_1, address_line_2, city, province_state, postal_code, country.
+          </p>
+
+          <FormField label="Import As Type">
+            <Select value={importType} onChange={(e) => setImportType(e.target.value)}>
+              <option value="">Use CSV column (or default to Client)</option>
+              <option value="client">Client</option>
+              <option value="supplier">Supplier</option>
+              <option value="both">Both</option>
+            </Select>
+          </FormField>
+
+          <FormField label="CSV File" required>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setImportFile(e.target.files[0] || null)}
+              className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
+                file:rounded-md file:border-0 file:text-sm file:font-medium
+                file:bg-navy file:text-white hover:file:bg-accent cursor-pointer"
+            />
+          </FormField>
+
+          <div className="flex items-center justify-between pt-2">
+            <a
+              href="/api/contacts/import/template"
+              download="contacts_template.csv"
+              className="text-sm text-accent hover:underline"
+            >
+              Download CSV Template
+            </a>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
+              <Button onClick={handleImport} disabled={!importFile || importing}>
+                {importing ? 'Importing...' : 'Import'}
+              </Button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   )

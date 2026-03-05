@@ -126,22 +126,28 @@ export default function InvoiceDetail() {
           </table>
         </div>
 
-        {invoice.tax && (
-          <div className="mt-4 flex justify-end">
-            <div className="w-64 space-y-1 text-sm">
-              {Object.entries(invoice.tax.taxes || {}).map(([code, info]) => (
-                <div key={code} className="flex justify-between text-gray-600">
-                  <span>{info.name} ({info.rate})</span>
-                  <span>{formatCurrency(info.amount)}</span>
+        <div className="mt-4 flex justify-end">
+          <div className="w-64 space-y-1 text-sm">
+            {invoice.tax && Object.keys(invoice.tax.taxes || {}).length > 0 && (
+              <>
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(invoice.amount - (invoice.tax.total || 0))}</span>
                 </div>
-              ))}
-              <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-2">
-                <span>Total</span>
-                <span>{formatCurrency(invoice.amount)}</span>
-              </div>
+                {Object.entries(invoice.tax.taxes).map(([code, info]) => (
+                  <div key={code} className="flex justify-between text-gray-600">
+                    <span>{info.name} ({info.rate}%)</span>
+                    <span>{formatCurrency(info.amount)}</span>
+                  </div>
+                ))}
+              </>
+            )}
+            <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-2">
+              <span>Total</span>
+              <span>{formatCurrency(invoice.amount)}</span>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
