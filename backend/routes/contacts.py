@@ -2,6 +2,7 @@
 
 import csv
 import io
+import json
 
 from flask import Blueprint, g, jsonify, request
 
@@ -163,6 +164,66 @@ CONTACT_CSV_FIELDS = [
 ]
 
 
+@bp.route("/contacts/import/preview", methods=["POST"])
+def import_preview():
+    """Parse a CSV and return its headers + sample rows for column mapping.
+
+    Expects multipart/form-data with:
+      - file: the CSV file
+    Returns JSON: { headers: [...], sample_rows: [[...], ...], dynabooks_fields: [...] }
+    """
+    if "file" not in request.files:
+        return jsonify(error="No file uploaded"), 400
+
+    file = request.files["file"]
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        return jsonify(error="File must be a .csv"), 400
+
+    try:
+        raw = file.stream.read().decode("utf-8-sig")
+        stream = io.StringIO(raw)
+        reader = csv.reader(stream)
+        rows = list(reader)
+    except Exception as e:
+        return jsonify(error=f"Failed to read CSV: {e}"), 400
+
+    if not rows:
+        return jsonify(error="CSV file is empty"), 400
+
+    headers = [h.strip() for h in rows[0]]
+    sample_rows = rows[1:6]  # up to 5 sample rows
+
+    # Try to auto-match headers to DynaBooks fields
+    auto_map = {}
+    normalized_fields = {f.lower().replace("_", " "): f for f in CONTACT_CSV_FIELDS}
+    for i, h in enumerate(headers):
+        norm = h.strip().lower().replace("_", " ").replace("/", " ")
+        if norm in normalized_fields:
+            auto_map[str(i)] = normalized_fields[norm]
+
+    return jsonify({
+        "headers": headers,
+        "sample_rows": sample_rows,
+        "dynabooks_fields": CONTACT_CSV_FIELDS,
+        "auto_map": auto_map,
+        "total_rows": len(rows) - 1,
+    })
+
+
+def _apply_column_map(row_values, headers, column_map):
+    """Apply a column mapping to convert a CSV row into a DynaBooks field dict.
+
+    column_map: dict mapping CSV column index (str) -> DynaBooks field name.
+    row_values: list of values from the CSV row.
+    """
+    mapped = {}
+    for col_idx_str, field_name in column_map.items():
+        idx = int(col_idx_str)
+        if 0 <= idx < len(row_values):
+            mapped[field_name] = row_values[idx].strip() if row_values[idx] else ""
+    return mapped
+
+
 @bp.route("/contacts/import", methods=["POST"])
 def import_contacts():
     """Import contacts from a CSV file.
@@ -170,6 +231,8 @@ def import_contacts():
     Expects multipart/form-data with:
       - file: the CSV file
       - contact_type (optional): override type for all rows (client/supplier/both)
+      - column_map (optional): JSON string mapping CSV column indices to DynaBooks fields
+        e.g. {"0": "name", "2": "email", "5": "city"}
     """
     if "file" not in request.files:
         return jsonify(error="No file uploaded"), 400
@@ -182,79 +245,152 @@ def import_contacts():
     if override_type and override_type not in ("client", "supplier", "both"):
         return jsonify(error="contact_type must be client, supplier, or both"), 400
 
+    # Parse optional column_map
+    column_map = None
+    column_map_raw = request.form.get("column_map")
+    if column_map_raw:
+        try:
+            column_map = json.loads(column_map_raw)
+        except (json.JSONDecodeError, TypeError):
+            return jsonify(error="Invalid column_map JSON"), 400
+
     try:
-        stream = io.StringIO(file.stream.read().decode("utf-8-sig"))
-        reader = csv.DictReader(stream)
+        raw = file.stream.read().decode("utf-8-sig")
+        stream = io.StringIO(raw)
     except Exception as e:
         return jsonify(error=f"Failed to read CSV: {e}"), 400
 
-    # Normalise header names: strip, lowercase, replace spaces with _
-    if reader.fieldnames:
-        reader.fieldnames = [
-            f.strip().lower().replace(" ", "_").replace("/", "_")
-            for f in reader.fieldnames
-        ]
+    if column_map:
+        # Column-mapped mode: use csv.reader and apply mapping
+        reader = csv.reader(stream)
+        headers = next(reader, None)  # skip header row
+        if not headers:
+            return jsonify(error="CSV file is empty"), 400
 
-    created = 0
-    skipped = 0
-    errors = []
+        created = 0
+        skipped = 0
+        errors = []
 
-    for row_num, row in enumerate(reader, start=2):  # row 1 is header
-        # Strip whitespace from values
-        row = {k: (v.strip() if v else "") for k, v in row.items()}
+        for row_num, row_values in enumerate(reader, start=2):
+            row = _apply_column_map(row_values, headers, column_map)
 
-        name = row.get("name", "")
-        if not name:
-            skipped += 1
-            continue
+            name = row.get("name", "")
+            if not name:
+                skipped += 1
+                continue
 
-        # Determine contact_type
-        ct = override_type
-        if not ct:
-            raw_type = row.get("contact_type", "").lower()
-            if raw_type in ("client", "supplier", "both"):
-                ct = raw_type
-            else:
-                ct = "client"
+            ct = override_type
+            if not ct:
+                raw_type = row.get("contact_type", "").lower()
+                if raw_type in ("client", "supplier", "both"):
+                    ct = raw_type
+                else:
+                    ct = "client"
 
-        try:
-            contact = Contact(
-                name=name,
-                contact_type=ct,
-                company=row.get("company", "") or None,
-                website=row.get("website", "") or None,
-                email=row.get("email", "") or None,
-                phone_1=row.get("phone_1", "") or None,
-                phone_1_label=row.get("phone_1_label", "") or None,
-                phone_2=row.get("phone_2", "") or None,
-                phone_2_label=row.get("phone_2_label", "") or None,
-                tax_number=row.get("tax_number", "") or None,
-                payment_terms=row.get("payment_terms", "") or "30 Days",
-                notes=row.get("notes", "") or None,
-            )
-            g.session.add(contact)
-            g.session.flush()
-
-            # Create address if any address field is present
-            addr1 = row.get("address_line_1", "")
-            city = row.get("city", "")
-            if addr1 or city:
-                addr = ContactAddress(
-                    contact_id=contact.id,
-                    address_type="Mailing Address",
-                    address_line_1=addr1 or None,
-                    address_line_2=row.get("address_line_2", "") or None,
-                    city=city or None,
-                    province_state=row.get("province_state", "") or None,
-                    postal_code=row.get("postal_code", "") or None,
-                    country=row.get("country", "") or "CA",
+            try:
+                contact = Contact(
+                    name=name,
+                    contact_type=ct,
+                    company=row.get("company", "") or None,
+                    website=row.get("website", "") or None,
+                    email=row.get("email", "") or None,
+                    phone_1=row.get("phone_1", "") or None,
+                    phone_1_label=row.get("phone_1_label", "") or None,
+                    phone_2=row.get("phone_2", "") or None,
+                    phone_2_label=row.get("phone_2_label", "") or None,
+                    tax_number=row.get("tax_number", "") or None,
+                    payment_terms=row.get("payment_terms", "") or "30 Days",
+                    notes=row.get("notes", "") or None,
                 )
-                g.session.add(addr)
+                g.session.add(contact)
+                g.session.flush()
 
-            created += 1
-        except Exception as e:
-            errors.append(f"Row {row_num} ({name}): {e}")
-            continue
+                addr1 = row.get("address_line_1", "")
+                city = row.get("city", "")
+                if addr1 or city:
+                    addr = ContactAddress(
+                        contact_id=contact.id,
+                        address_type="Mailing Address",
+                        address_line_1=addr1 or None,
+                        address_line_2=row.get("address_line_2", "") or None,
+                        city=city or None,
+                        province_state=row.get("province_state", "") or None,
+                        postal_code=row.get("postal_code", "") or None,
+                        country=row.get("country", "") or "CA",
+                    )
+                    g.session.add(addr)
+
+                created += 1
+            except Exception as e:
+                errors.append(f"Row {row_num} ({name}): {e}")
+                continue
+    else:
+        # Legacy mode: auto-match headers by normalised name
+        reader = csv.DictReader(stream)
+
+        if reader.fieldnames:
+            reader.fieldnames = [
+                f.strip().lower().replace(" ", "_").replace("/", "_")
+                for f in reader.fieldnames
+            ]
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        for row_num, row in enumerate(reader, start=2):
+            row = {k: (v.strip() if v else "") for k, v in row.items()}
+
+            name = row.get("name", "")
+            if not name:
+                skipped += 1
+                continue
+
+            ct = override_type
+            if not ct:
+                raw_type = row.get("contact_type", "").lower()
+                if raw_type in ("client", "supplier", "both"):
+                    ct = raw_type
+                else:
+                    ct = "client"
+
+            try:
+                contact = Contact(
+                    name=name,
+                    contact_type=ct,
+                    company=row.get("company", "") or None,
+                    website=row.get("website", "") or None,
+                    email=row.get("email", "") or None,
+                    phone_1=row.get("phone_1", "") or None,
+                    phone_1_label=row.get("phone_1_label", "") or None,
+                    phone_2=row.get("phone_2", "") or None,
+                    phone_2_label=row.get("phone_2_label", "") or None,
+                    tax_number=row.get("tax_number", "") or None,
+                    payment_terms=row.get("payment_terms", "") or "30 Days",
+                    notes=row.get("notes", "") or None,
+                )
+                g.session.add(contact)
+                g.session.flush()
+
+                addr1 = row.get("address_line_1", "")
+                city = row.get("city", "")
+                if addr1 or city:
+                    addr = ContactAddress(
+                        contact_id=contact.id,
+                        address_type="Mailing Address",
+                        address_line_1=addr1 or None,
+                        address_line_2=row.get("address_line_2", "") or None,
+                        city=city or None,
+                        province_state=row.get("province_state", "") or None,
+                        postal_code=row.get("postal_code", "") or None,
+                        country=row.get("country", "") or "CA",
+                    )
+                    g.session.add(addr)
+
+                created += 1
+            except Exception as e:
+                errors.append(f"Row {row_num} ({name}): {e}")
+                continue
 
     try:
         g.session.commit()

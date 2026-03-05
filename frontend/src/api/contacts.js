@@ -45,10 +45,22 @@ export const deleteContact = (id) =>
 export const fetchContactAddresses = (contactId) =>
   apiFetch(`/contacts/${contactId}/addresses`)
 
-export const importContacts = (file, contactType) => {
+export const previewImportCsv = (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return fetch('/api/contacts/import/preview', { method: 'POST', body: formData })
+    .then(async (res) => {
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Preview failed')
+      return data
+    })
+}
+
+export const importContacts = (file, contactType, columnMap) => {
   const formData = new FormData()
   formData.append('file', file)
   if (contactType) formData.append('contact_type', contactType)
+  if (columnMap) formData.append('column_map', JSON.stringify(columnMap))
   return fetch('/api/contacts/import', { method: 'POST', body: formData })
     .then(async (res) => {
       const data = await res.json()

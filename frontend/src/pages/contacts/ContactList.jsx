@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
-import { fetchContacts, createContact, updateContact, deleteContact, importContacts } from '../../api/contacts'
+import { fetchContacts, createContact, updateContact, deleteContact, importContacts, previewImportCsv } from '../../api/contacts'
 import { fetchTaxes } from '../../api/taxes'
 import DataTable from '../../components/shared/DataTable'
 import PageHeader from '../../components/shared/PageHeader'
@@ -51,6 +51,9 @@ export default function ContactList() {
   const [importFile, setImportFile] = useState(null)
   const [importType, setImportType] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importStep, setImportStep] = useState(1) // 1 = upload, 2 = map columns
+  const [importPreview, setImportPreview] = useState(null) // { headers, sample_rows, dynabooks_fields, auto_map, total_rows }
+  const [columnMap, setColumnMap] = useState({}) // { csvColIndex: dynabooksField }
   const toast = useToast()
 
   const columns = [
@@ -122,14 +125,54 @@ export default function ContactList() {
   const openImport = () => {
     setImportFile(null)
     setImportType(typeFilter || '')
+    setImportStep(1)
+    setImportPreview(null)
+    setColumnMap({})
     setImportOpen(true)
+  }
+
+  const handleImportPreview = async () => {
+    if (!importFile) return
+    setImporting(true)
+    try {
+      const preview = await previewImportCsv(importFile)
+      setImportPreview(preview)
+      setColumnMap(preview.auto_map || {})
+      setImportStep(2)
+    } catch (err) {
+      toast.error(err.message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleColumnMapChange = (colIdx, field) => {
+    setColumnMap(prev => {
+      const next = { ...prev }
+      if (!field) {
+        delete next[String(colIdx)]
+      } else {
+        // Remove any other column mapped to this field (one-to-one)
+        for (const [k, v] of Object.entries(next)) {
+          if (v === field) delete next[k]
+        }
+        next[String(colIdx)] = field
+      }
+      return next
+    })
   }
 
   const handleImport = async () => {
     if (!importFile) return
+    // Must have "name" mapped
+    const hasName = Object.values(columnMap).includes('name')
+    if (!hasName) {
+      toast.error('You must map at least one column to "name"')
+      return
+    }
     setImporting(true)
     try {
-      const result = await importContacts(importFile, importType || undefined)
+      const result = await importContacts(importFile, importType || undefined, columnMap)
       const msg = `Imported ${result.created} contact${result.created !== 1 ? 's' : ''}`
         + (result.skipped ? `, ${result.skipped} skipped (no name)` : '')
       toast.success(msg)
@@ -384,51 +427,127 @@ export default function ContactList() {
       </Modal>
 
       {/* Import CSV Modal */}
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Import Contacts from CSV">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            Upload a CSV file with contact data. Required column: <strong>name</strong>.
-            Optional columns: company, email, phone_1, phone_1_label, phone_2, phone_2_label,
-            website, tax_number, payment_terms, notes, contact_type,
-            address_line_1, address_line_2, city, province_state, postal_code, country.
-          </p>
+      <Modal open={importOpen} onClose={() => setImportOpen(false)}
+        title={importStep === 1 ? 'Import Contacts from CSV' : 'Map CSV Columns'} wide={importStep === 2}>
+        {importStep === 1 ? (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Upload a CSV file with contact data. In the next step you can map your CSV
+              columns to DynaBooks fields. Unmatched columns will be ignored.
+            </p>
 
-          <FormField label="Import As Type">
-            <Select value={importType} onChange={(e) => setImportType(e.target.value)}>
-              <option value="">Use CSV column (or default to Client)</option>
-              <option value="client">Client</option>
-              <option value="supplier">Supplier</option>
-              <option value="both">Both</option>
-            </Select>
-          </FormField>
+            <FormField label="Import As Type">
+              <Select value={importType} onChange={(e) => setImportType(e.target.value)}>
+                <option value="">Use CSV column (or default to Client)</option>
+                <option value="client">Client</option>
+                <option value="supplier">Supplier</option>
+                <option value="both">Both</option>
+              </Select>
+            </FormField>
 
-          <FormField label="CSV File" required>
-            <input
-              type="file"
-              accept=".csv"
-              onChange={(e) => setImportFile(e.target.files[0] || null)}
-              className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
-                file:rounded-md file:border-0 file:text-sm file:font-medium
-                file:bg-navy file:text-white hover:file:bg-accent cursor-pointer"
-            />
-          </FormField>
+            <FormField label="CSV File" required>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setImportFile(e.target.files[0] || null)}
+                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4
+                  file:rounded-md file:border-0 file:text-sm file:font-medium
+                  file:bg-navy file:text-white hover:file:bg-accent cursor-pointer"
+              />
+            </FormField>
 
-          <div className="flex items-center justify-between pt-2">
-            <a
-              href="/api/contacts/import/template"
-              download="contacts_template.csv"
-              className="text-sm text-accent hover:underline"
-            >
-              Download CSV Template
-            </a>
-            <div className="flex gap-3">
-              <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
-              <Button onClick={handleImport} disabled={!importFile || importing}>
-                {importing ? 'Importing...' : 'Import'}
-              </Button>
+            <div className="flex items-center justify-between pt-2">
+              <a
+                href="/api/contacts/import/template"
+                download="contacts_template.csv"
+                className="text-sm text-accent hover:underline"
+              >
+                Download CSV Template
+              </a>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
+                <Button onClick={handleImportPreview} disabled={!importFile || importing}>
+                  {importing ? 'Reading...' : 'Next: Map Columns'}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Map your CSV columns to DynaBooks fields. The <strong>name</strong> field is required.
+              {importPreview && ` ${importPreview.total_rows} row(s) found.`}
+            </p>
+
+            {/* Column Mapping Table */}
+            <div className="overflow-x-auto max-h-96 border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/4">CSV Column</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600 w-1/4">Map To</th>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-600">Sample Data</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {importPreview?.headers.map((header, idx) => (
+                    <tr key={idx} className={columnMap[String(idx)] ? 'bg-blue-50' : ''}>
+                      <td className="px-3 py-2 font-medium text-gray-800">{header}</td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={columnMap[String(idx)] || ''}
+                          onChange={(e) => handleColumnMapChange(idx, e.target.value)}
+                          className="w-full rounded-md border-gray-300 text-sm py-1 px-2 border focus:ring-accent focus:border-accent"
+                        >
+                          <option value="">-- Ignore --</option>
+                          {importPreview.dynabooks_fields.map(f => {
+                            const alreadyMapped = Object.entries(columnMap).some(
+                              ([k, v]) => v === f && k !== String(idx)
+                            )
+                            return (
+                              <option key={f} value={f} disabled={alreadyMapped}>
+                                {f}{alreadyMapped ? ' (mapped)' : ''}
+                              </option>
+                            )
+                          })}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2 text-gray-500 text-xs truncate max-w-xs">
+                        {importPreview?.sample_rows.slice(0, 3).map((row, ri) => (
+                          <span key={ri}>
+                            {ri > 0 && <span className="mx-1 text-gray-300">|</span>}
+                            {row[idx] || ''}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mapping summary */}
+            <div className="text-xs text-gray-500">
+              {Object.keys(columnMap).length} of {importPreview?.headers.length || 0} columns mapped.
+              {!Object.values(columnMap).includes('name') && (
+                <span className="text-red-500 ml-2 font-medium">
+                  "name" must be mapped to import.
+                </span>
+              )}
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <Button variant="secondary" onClick={() => setImportStep(1)}>Back</Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" onClick={() => setImportOpen(false)}>Cancel</Button>
+                <Button onClick={handleImport}
+                  disabled={importing || !Object.values(columnMap).includes('name')}>
+                  {importing ? 'Importing...' : 'Import'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )
