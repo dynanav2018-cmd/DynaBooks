@@ -178,32 +178,6 @@ export default function ContactList() {
     }
   }
 
-  const openImport = () => {
-    setImportFile(null)
-    setImportType(typeFilter || '')
-    setImportOpen(true)
-  }
-
-  const handleImport = async () => {
-    if (!importFile) return
-    setImporting(true)
-    try {
-      const result = await importContacts(importFile, importType || undefined)
-      const msg = `Imported ${result.created} contact${result.created !== 1 ? 's' : ''}`
-        + (result.skipped ? `, ${result.skipped} skipped (no name)` : '')
-      toast.success(msg)
-      if (result.errors?.length) {
-        toast.error(`${result.errors.length} row error(s): ${result.errors[0]}`)
-      }
-      setImportOpen(false)
-      refetch()
-    } catch (err) {
-      toast.error(err.message)
-    } finally {
-      setImporting(false)
-    }
-  }
-
   const setField = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
   const updateAddress = (idx, field, value) => {
