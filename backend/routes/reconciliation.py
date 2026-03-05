@@ -33,9 +33,9 @@ def _get_ledger_entries(session, account_id, year, month):
         SELECT l.id, l.transaction_id, t.transaction_date, t.narration,
                t.transaction_no, l.amount, l.entry_type
         FROM ledger l
-        JOIN transaction t ON l.transaction_id = t.id
+        JOIN "transaction" t ON l.transaction_id = t.id
         JOIN recyclable r ON l.id = r.id
-        WHERE l.post_account = :account_id
+        WHERE l.post_account_id = :account_id
           AND strftime('%Y', t.transaction_date) = :year
           AND strftime('%m', t.transaction_date) = :month
           AND r.deleted_at IS NULL

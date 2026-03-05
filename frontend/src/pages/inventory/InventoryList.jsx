@@ -23,6 +23,7 @@ const formatCurrency = (v) => {
 const emptyForm = {
   name: '', description: '', default_price: '', sku: '',
   revenue_account_id: '', tax_id: '',
+  track_inventory: true,
   reorder_point: '', inventory_account_id: '', cogs_account_id: '',
   preferred_supplier_id: '',
 }
@@ -44,8 +45,9 @@ export default function InventoryList() {
   const { data: suppliers } = useApi(() => fetchContacts('supplier'), [])
 
   const filtered = (products || []).filter((p) => {
-    if (filter === 'low') return p.quantity_on_hand <= p.reorder_point
-    if (filter === 'in-stock') return p.quantity_on_hand > p.reorder_point
+    if (filter === 'tracked') return p.track_inventory
+    if (filter === 'sales') return !p.track_inventory
+    if (filter === 'low') return p.track_inventory && p.quantity_on_hand <= p.reorder_point
     return true
   })
 
@@ -55,38 +57,41 @@ export default function InventoryList() {
     {
       key: 'quantity_on_hand',
       label: 'On Hand',
-      render: (v) => Number(v).toFixed(0),
+      render: (v, row) => row.track_inventory ? Number(v).toFixed(0) : '—',
     },
     {
       key: 'average_cost',
       label: 'Avg Cost',
-      render: (v) => formatCurrency(v),
+      render: (v, row) => row.track_inventory ? formatCurrency(v) : '—',
     },
     {
       key: '_value',
       label: 'Value',
-      render: (_, row) => formatCurrency(row.quantity_on_hand * row.average_cost),
+      render: (_, row) => row.track_inventory ? formatCurrency(row.quantity_on_hand * row.average_cost) : '—',
     },
     {
-      key: 'reorder_point',
-      label: 'Reorder Pt',
-      render: (v) => Number(v).toFixed(0),
+      key: 'default_price',
+      label: 'Price',
+      render: (v) => v ? formatCurrency(v) : '—',
     },
     {
       key: '_status',
       label: 'Status',
-      render: (_, row) =>
-        row.quantity_on_hand <= row.reorder_point ? (
+      render: (_, row) => {
+        if (!row.track_inventory) return <StatusBadge status="Sales Only" />
+        return row.quantity_on_hand <= row.reorder_point ? (
           <StatusBadge status="Low Stock" />
         ) : (
           <StatusBadge status="In Stock" />
-        ),
+        )
+      },
     },
   ]
 
   const filters = [
     { key: 'all', label: 'All' },
-    { key: 'in-stock', label: 'In Stock' },
+    { key: 'tracked', label: 'Tracked' },
+    { key: 'sales', label: 'Sales Only' },
     { key: 'low', label: 'Low Stock' },
   ]
 
@@ -107,11 +112,13 @@ export default function InventoryList() {
         revenue_account_id: parseInt(form.revenue_account_id),
         tax_id: form.tax_id ? parseInt(form.tax_id) : null,
         sku: form.sku || null,
-        track_inventory: true,
-        reorder_point: parseFloat(form.reorder_point) || 0,
-        inventory_account_id: form.inventory_account_id ? parseInt(form.inventory_account_id) : null,
-        cogs_account_id: form.cogs_account_id ? parseInt(form.cogs_account_id) : null,
+        track_inventory: form.track_inventory,
         preferred_supplier_id: form.preferred_supplier_id ? parseInt(form.preferred_supplier_id) : null,
+      }
+      if (form.track_inventory) {
+        payload.reorder_point = parseFloat(form.reorder_point) || 0
+        payload.inventory_account_id = form.inventory_account_id ? parseInt(form.inventory_account_id) : null
+        payload.cogs_account_id = form.cogs_account_id ? parseInt(form.cogs_account_id) : null
       }
       await createProduct(payload)
       toast.success('Inventory item created')
@@ -128,7 +135,7 @@ export default function InventoryList() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Inventory Items">
+      <PageHeader title="Inventory & Sales Items">
         <Button variant="secondary" onClick={() => setShowAdjust(true)}>
           Adjust Stock
         </Button>
@@ -213,26 +220,38 @@ export default function InventoryList() {
               </Select>
             </FormField>
 
-            <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2">Inventory Tracking</h4>
-            <FormField label="Reorder Point">
-              <Input type="number" min="0" step="any" value={form.reorder_point} onChange={(e) => setForm({ ...form, reorder_point: e.target.value })} placeholder="0" />
-            </FormField>
-            <FormField label="Inventory Account">
-              <Select value={form.inventory_account_id} onChange={(e) => setForm({ ...form, inventory_account_id: e.target.value })}>
-                <option value="">Select account...</option>
-                {inventoryAccounts?.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </Select>
-            </FormField>
-            <FormField label="COGS Account">
-              <Select value={form.cogs_account_id} onChange={(e) => setForm({ ...form, cogs_account_id: e.target.value })}>
-                <option value="">Select account...</option>
-                {cogsAccounts?.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </Select>
-            </FormField>
+            <label className="flex items-center gap-2 mt-3 mb-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.track_inventory}
+                onChange={(e) => setForm({ ...form, track_inventory: e.target.checked })}
+                className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+              />
+              <span className="text-sm font-medium text-gray-700">Track Inventory</span>
+            </label>
+            {form.track_inventory && (
+              <>
+                <FormField label="Reorder Point">
+                  <Input type="number" min="0" step="any" value={form.reorder_point} onChange={(e) => setForm({ ...form, reorder_point: e.target.value })} placeholder="0" />
+                </FormField>
+                <FormField label="Inventory Account">
+                  <Select value={form.inventory_account_id} onChange={(e) => setForm({ ...form, inventory_account_id: e.target.value })}>
+                    <option value="">Select account...</option>
+                    {inventoryAccounts?.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="COGS Account">
+                  <Select value={form.cogs_account_id} onChange={(e) => setForm({ ...form, cogs_account_id: e.target.value })}>
+                    <option value="">Select account...</option>
+                    {cogsAccounts?.map((a) => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </Select>
+                </FormField>
+              </>
+            )}
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="secondary" type="button" onClick={() => setShowCreate(false)}>Cancel</Button>

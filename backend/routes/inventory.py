@@ -15,10 +15,10 @@ bp = Blueprint("inventory", __name__, url_prefix="/api")
 
 @bp.route("/inventory", methods=["GET"])
 def list_inventory():
-    """List all inventory-tracked products with stock info."""
+    """List all active products (inventory-tracked and sales-only)."""
     products = (
         g.session.query(Product)
-        .filter(Product.track_inventory.is_(True), Product.is_active.is_(True))
+        .filter(Product.is_active.is_(True))
         .all()
     )
     return jsonify([serialize_product(p) for p in products])

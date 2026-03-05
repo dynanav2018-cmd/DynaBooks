@@ -24,6 +24,7 @@ export default function BillList() {
 
   const columns = [
     { key: 'transaction_no', label: 'Bill #' },
+    { key: 'reference', label: 'Supplier Inv #', render: (v) => v || '—' },
     { key: 'transaction_date', label: 'Date', render: (v) => formatDate(v) },
     { key: 'narration', label: 'Description' },
     {

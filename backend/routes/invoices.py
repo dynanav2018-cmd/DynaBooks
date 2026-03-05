@@ -25,6 +25,47 @@ from backend.services.inventory import (
 bp = Blueprint("invoices", __name__, url_prefix="/api")
 
 
+def _create_line_items(session, transaction, line_items_data, entity_id):
+    """Create line items for a transaction, including hidden tax2 lines."""
+    for i, li_data in enumerate(line_items_data):
+        line = LineItem(
+            narration=li_data.get("narration", ""),
+            account_id=li_data["account_id"],
+            amount=Decimal(str(li_data["amount"])),
+            quantity=Decimal(str(li_data.get("quantity", 1))),
+            tax_id=li_data.get("tax_id"),
+            entity_id=entity_id,
+        )
+        session.add(line)
+        session.flush()
+        transaction.line_items.add(line)
+        session.flush()
+
+        # Create hidden line for secondary tax
+        tax_id_2 = li_data.get("tax_id_2")
+        if tax_id_2:
+            tax2 = session.get(Tax, tax_id_2)
+            if tax2:
+                line_amount = Decimal(str(li_data["amount"])) * Decimal(str(li_data.get("quantity", 1)))
+                tax2_amount = (line_amount * tax2.rate / Decimal("100")).quantize(Decimal("0.01"))
+                orig_types = list(transaction.line_item_types)
+                transaction.line_item_types = orig_types + [Account.AccountType.CONTROL]
+
+                hidden = LineItem(
+                    narration=f"[TAX2:{tax2.id}:L{i}]",
+                    account_id=tax2.account_id,
+                    amount=tax2_amount,
+                    quantity=Decimal("1"),
+                    tax_id=None,
+                    entity_id=entity_id,
+                )
+                session.add(hidden)
+                session.flush()
+                transaction.line_items.add(hidden)
+                session.flush()
+                transaction.line_item_types = orig_types
+
+
 def _check_and_unpost(session, transaction, transaction_id):
     """If posted and allow_edit_posted is on, un-post via raw SQL.
 
@@ -148,19 +189,7 @@ def create_invoice():
         g.session.add(invoice)
         g.session.flush()
 
-        for li_data in line_items_data:
-            line = LineItem(
-                narration=li_data.get("narration", ""),
-                account_id=li_data["account_id"],
-                amount=Decimal(str(li_data["amount"])),
-                quantity=Decimal(str(li_data.get("quantity", 1))),
-                tax_id=li_data.get("tax_id"),
-                entity_id=entity.id,
-            )
-            g.session.add(line)
-            g.session.flush()
-            invoice.line_items.add(line)
-            g.session.flush()
+        _create_line_items(g.session, invoice, line_items_data, entity.id)
 
         # Link contact if provided
         contact_id = data.get("contact_id")
@@ -210,7 +239,7 @@ def create_invoice():
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(invoice)), 201
+    return jsonify(serialize_transaction(invoice, session=g.session)), 201
 
 
 @bp.route("/invoices/<int:invoice_id>", methods=["PUT"])
@@ -276,19 +305,7 @@ def update_invoice(invoice_id):
 
             # Recreate line items using .line_items.add() so the
             # library's @validates flips credited correctly.
-            for li_data in line_items_data:
-                line = LineItem(
-                    narration=li_data.get("narration", ""),
-                    account_id=li_data["account_id"],
-                    amount=Decimal(str(li_data["amount"])),
-                    quantity=Decimal(str(li_data.get("quantity", 1))),
-                    tax_id=li_data.get("tax_id"),
-                    entity_id=entity.id,
-                )
-                g.session.add(line)
-                g.session.flush()
-                invoice.line_items.add(line)
-                g.session.flush()
+            _create_line_items(g.session, invoice, line_items_data, entity.id)
 
             invoice.main_account_amount = invoice.amount
 
@@ -414,4 +431,4 @@ def post_invoice(invoice_id):
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(invoice))
+    return jsonify(serialize_transaction(invoice, session=g.session))

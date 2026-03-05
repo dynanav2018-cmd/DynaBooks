@@ -154,7 +154,24 @@ export default function BankReconciliation() {
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Previous Reconciliations</h3>
           <div className="space-y-2">
             {history.map(r => (
-              <div key={r.id} className="flex items-center justify-between text-sm border-b pb-2">
+              <div key={r.id}
+                className={`flex items-center justify-between text-sm border-b pb-2 ${
+                  r.status === 'draft' ? 'cursor-pointer hover:bg-blue-50' : ''
+                }`}
+                onClick={r.status === 'draft' ? async () => {
+                  setLoading(true)
+                  try {
+                    const full = await fetchReconciliation(r.id)
+                    setRecData(full)
+                    setStatementBalance(full.statement_balance?.toString() || '0')
+                    setClearedIds(new Set(full.entries?.filter(e => e.is_cleared).map(e => e.ledger_id) || []))
+                  } catch (err) {
+                    toast.error(err.message)
+                  } finally {
+                    setLoading(false)
+                  }
+                } : undefined}
+              >
                 <span>{MONTHS[r.period_month - 1]} {r.period_year}</span>
                 <span>Statement: ${parseFloat(r.statement_balance).toFixed(2)}</span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${

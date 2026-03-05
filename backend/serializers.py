@@ -1,6 +1,7 @@
 """JSON serialization helpers for DynaBooks models."""
 
 import json
+import re
 from decimal import Decimal
 
 
@@ -109,7 +110,32 @@ def serialize_transaction(transaction, session=None):
     If *session* is provided, includes ``cleared_amount`` and ``outstanding``
     for clearable transactions (invoices/bills).
     """
-    line_items = [serialize_line_item(li) for li in transaction.line_items]
+    # Separate hidden tax2 lines from regular lines
+    all_lines = list(transaction.line_items)
+    hidden_tax2 = {}  # line_idx -> tax_id
+    tax2_amounts = {}  # tax_id -> total Decimal amount
+    regular_lines = []
+
+    for li in all_lines:
+        match = re.match(r'\[TAX2:(\d+):L(\d+)\]', li.narration or '')
+        if match:
+            tax_id = int(match.group(1))
+            line_idx = int(match.group(2))
+            hidden_tax2[line_idx] = tax_id
+            tax2_amounts[tax_id] = tax2_amounts.get(tax_id, Decimal(0)) + li.amount
+        else:
+            regular_lines.append(li)
+
+    # Sort regular lines by id to maintain insertion order
+    regular_lines.sort(key=lambda x: x.id)
+
+    line_items = []
+    for i, li in enumerate(regular_lines):
+        data = serialize_line_item(li)
+        if i in hidden_tax2:
+            data['tax_id_2'] = hidden_tax2[i]
+        line_items.append(data)
+
     tax_info = None
     try:
         tax_info = {
@@ -125,6 +151,30 @@ def serialize_transaction(transaction, session=None):
         }
     except Exception:
         pass
+
+    # Augment tax breakdown with secondary tax info
+    if tax2_amounts and session:
+        from python_accounting.models import Tax
+
+        if tax_info is None:
+            tax_info = {"total": 0, "taxes": {}}
+        for tax_id, total_amount in tax2_amounts.items():
+            tax = session.get(Tax, tax_id)
+            if tax:
+                code = tax.code
+                if code in tax_info["taxes"]:
+                    tax_info["taxes"][code]["amount"] = _dec(
+                        Decimal(str(tax_info["taxes"][code]["amount"])) + total_amount
+                    )
+                else:
+                    tax_info["taxes"][code] = {
+                        "name": tax.name,
+                        "rate": _dec(tax.rate),
+                        "amount": _dec(total_amount),
+                    }
+                tax_info["total"] = _dec(
+                    Decimal(str(tax_info["total"])) + total_amount
+                )
 
     result = {
         "id": transaction.id,

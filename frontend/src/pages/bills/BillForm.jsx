@@ -13,7 +13,7 @@ import Button from '../../components/shared/Button'
 import FormField, { Input, Select } from '../../components/shared/FormField'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
-const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '', product_id: '' }
+const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '', tax_id_2: '', product_id: '' }
 
 export default function BillForm() {
   const { id } = useParams()
@@ -37,6 +37,7 @@ export default function BillForm() {
     shipping_address_id: '',
     transaction_date: todayISO(),
     narration: 'Supplier Bill',
+    reference: '',
     line_items: [{ ...emptyLine }],
   })
   const [saving, setSaving] = useState(false)
@@ -53,6 +54,7 @@ export default function BillForm() {
           shipping_address_id: bill.shipping_address_id?.toString() || '',
           transaction_date: bill.transaction_date?.split('T')[0] || todayISO(),
           narration: bill.narration || '',
+          reference: bill.reference || '',
           line_items: bill.line_items.map((li) => {
             const matched = allProds.find((p) => p.name === li.narration)
             return {
@@ -61,6 +63,7 @@ export default function BillForm() {
               quantity: li.quantity || 1,
               amount: li.amount || '',
               tax_id: li.tax_id || '',
+              tax_id_2: li.tax_id_2 || '',
               product_id: matched ? matched.id.toString() : '',
             }
           }),
@@ -144,6 +147,9 @@ export default function BillForm() {
       if (li.tax_id && taxRates[li.tax_id]) {
         taxTotal += lineAmount * taxRates[li.tax_id] / 100
       }
+      if (li.tax_id_2 && taxRates[li.tax_id_2]) {
+        taxTotal += lineAmount * taxRates[li.tax_id_2] / 100
+      }
     })
 
     return { subtotal, taxTotal, total: subtotal + taxTotal }
@@ -159,12 +165,14 @@ export default function BillForm() {
         billing_address_id: form.billing_address_id ? parseInt(form.billing_address_id) : undefined,
         shipping_address_id: form.shipping_address_id ? parseInt(form.shipping_address_id) : undefined,
         post,
+        reference: form.reference || undefined,
         line_items: form.line_items.map((li) => ({
           narration: li.narration,
           account_id: parseInt(li.account_id),
           quantity: parseFloat(li.quantity) || 1,
           amount: parseFloat(li.amount) || 0,
           tax_id: li.tax_id ? parseInt(li.tax_id) : undefined,
+          tax_id_2: li.tax_id_2 ? parseInt(li.tax_id_2) : undefined,
         })),
       }
 
@@ -196,7 +204,7 @@ export default function BillForm() {
       </PageHeader>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <FormField label="Supplier">
             <Select value={form.contact_id} onChange={(e) => handleContactChange(e.target.value)}>
               <option value="">Select supplier...</option>
@@ -211,6 +219,13 @@ export default function BillForm() {
               value={form.transaction_date}
               onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
               required
+            />
+          </FormField>
+          <FormField label="Supplier Invoice #">
+            <Input
+              value={form.reference}
+              onChange={(e) => setForm({ ...form, reference: e.target.value })}
+              placeholder="e.g. INV-12345"
             />
           </FormField>
           <FormField label="Description">
@@ -333,12 +348,24 @@ export default function BillForm() {
               </div>
               <div className="col-span-2">
                 {i === 0 && <label className="block text-xs text-gray-500 mb-1">Tax</label>}
-                <Select value={li.tax_id} onChange={(e) => updateLine(i, 'tax_id', e.target.value)}>
-                  <option value="">No tax</option>
-                  {taxes?.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
-                  ))}
-                </Select>
+                <div className="flex gap-1">
+                  <div className="flex-1 min-w-0">
+                    <Select value={li.tax_id} onChange={(e) => updateLine(i, 'tax_id', e.target.value)}>
+                      <option value="">Tax 1</option>
+                      {taxes?.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Select value={li.tax_id_2} onChange={(e) => updateLine(i, 'tax_id_2', e.target.value)}>
+                      <option value="">Tax 2</option>
+                      {taxes?.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="col-span-1">
                 <button

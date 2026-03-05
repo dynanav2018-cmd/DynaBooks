@@ -6,7 +6,7 @@ from decimal import Decimal
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import text
 
-from python_accounting.models import Account, LineItem, Transaction
+from python_accounting.models import Account, LineItem, Tax, Transaction
 from python_accounting.transactions import SupplierBill
 
 from backend.models.company_info import CompanyInfo
@@ -20,6 +20,47 @@ from backend.services.inventory import (
 )
 
 bp = Blueprint("bills", __name__, url_prefix="/api")
+
+
+def _create_line_items(session, transaction, line_items_data, entity_id):
+    """Create line items for a transaction, including hidden tax2 lines."""
+    for i, li_data in enumerate(line_items_data):
+        line = LineItem(
+            narration=li_data.get("narration", ""),
+            account_id=li_data["account_id"],
+            amount=Decimal(str(li_data["amount"])),
+            quantity=Decimal(str(li_data.get("quantity", 1))),
+            tax_id=li_data.get("tax_id"),
+            entity_id=entity_id,
+        )
+        session.add(line)
+        session.flush()
+        transaction.line_items.add(line)
+        session.flush()
+
+        # Create hidden line for secondary tax
+        tax_id_2 = li_data.get("tax_id_2")
+        if tax_id_2:
+            tax2 = session.get(Tax, tax_id_2)
+            if tax2:
+                line_amount = Decimal(str(li_data["amount"])) * Decimal(str(li_data.get("quantity", 1)))
+                tax2_amount = (line_amount * tax2.rate / Decimal("100")).quantize(Decimal("0.01"))
+                orig_types = list(transaction.line_item_types)
+                transaction.line_item_types = orig_types + [Account.AccountType.CONTROL]
+
+                hidden = LineItem(
+                    narration=f"[TAX2:{tax2.id}:L{i}]",
+                    account_id=tax2.account_id,
+                    amount=tax2_amount,
+                    quantity=Decimal("1"),
+                    tax_id=None,
+                    entity_id=entity_id,
+                )
+                session.add(hidden)
+                session.flush()
+                transaction.line_items.add(hidden)
+                session.flush()
+                transaction.line_item_types = orig_types
 
 
 def _check_and_unpost(session, transaction, transaction_id):
@@ -142,21 +183,11 @@ def create_bill():
             entity_id=entity.id,
         )
         g.session.add(bill)
+        if data.get("reference"):
+            bill.reference = data["reference"]
         g.session.flush()
 
-        for li_data in line_items_data:
-            line = LineItem(
-                narration=li_data.get("narration", ""),
-                account_id=li_data["account_id"],
-                amount=Decimal(str(li_data["amount"])),
-                quantity=Decimal(str(li_data.get("quantity", 1))),
-                tax_id=li_data.get("tax_id"),
-                entity_id=entity.id,
-            )
-            g.session.add(line)
-            g.session.flush()
-            bill.line_items.add(line)
-            g.session.flush()
+        _create_line_items(g.session, bill, line_items_data, entity.id)
 
         contact_id = data.get("contact_id")
         if contact_id:
@@ -200,7 +231,7 @@ def create_bill():
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(bill)), 201
+    return jsonify(serialize_transaction(bill, session=g.session)), 201
 
 
 @bp.route("/bills/<int:bill_id>", methods=["PUT"])
@@ -266,19 +297,7 @@ def update_bill(bill_id):
 
             # Recreate line items using .line_items.add() so the
             # library's @validates flips credited correctly.
-            for li_data in line_items_data:
-                line = LineItem(
-                    narration=li_data.get("narration", ""),
-                    account_id=li_data["account_id"],
-                    amount=Decimal(str(li_data["amount"])),
-                    quantity=Decimal(str(li_data.get("quantity", 1))),
-                    tax_id=li_data.get("tax_id"),
-                    entity_id=entity.id,
-                )
-                g.session.add(line)
-                g.session.flush()
-                bill.line_items.add(line)
-                g.session.flush()
+            _create_line_items(g.session, bill, line_items_data, entity.id)
 
             bill.main_account_amount = bill.amount
 
@@ -393,4 +412,4 @@ def post_bill(bill_id):
         g.session.rollback()
         return jsonify(error=str(e)), 400
 
-    return jsonify(serialize_transaction(bill))
+    return jsonify(serialize_transaction(bill, session=g.session))
