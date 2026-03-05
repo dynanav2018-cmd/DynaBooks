@@ -165,16 +165,41 @@ function CompanySettings() {
 
 function TaxSettings() {
   const { data: taxList, loading, refetch } = useApi(fetchTaxes)
-  const { data: accounts } = useApi(() => fetchAccounts('Control'), [])
+  const { data: controlAccounts } = useApi(() => fetchAccounts('Control'), [])
+  const { data: expenseAccounts } = useApi(() => fetchAccounts(null, 'expense'), [])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
-  const [form, setForm] = useState({ name: '', code: '', rate: '', account_id: '' })
+  const [form, setForm] = useState({ name: '', code: '', rate: '', account_id: '', account_category: 'control' })
   const toast = useToast()
+
+  // Combine accounts for lookup
+  const allTaxAccounts = [...(controlAccounts || []), ...(expenseAccounts || [])]
+  const getAccountInfo = (accountId) => {
+    const acct = allTaxAccounts.find((a) => a.id === accountId)
+    if (!acct) return null
+    const isExpense = (expenseAccounts || []).some((a) => a.id === accountId)
+    return { ...acct, isExpense }
+  }
 
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'code', label: 'Code' },
     { key: 'rate', label: 'Rate', render: (v) => `${v}%` },
+    {
+      key: 'account_id',
+      label: 'Account Type',
+      render: (v) => {
+        const info = getAccountInfo(v)
+        if (!info) return '—'
+        return (
+          <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+            info.isExpense ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+          }`}>
+            {info.isExpense ? 'Expense' : 'Control'}
+          </span>
+        )
+      },
+    },
     {
       key: 'actions',
       label: '',
@@ -189,13 +214,18 @@ function TaxSettings() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ name: '', code: '', rate: '', account_id: '' })
+    setForm({ name: '', code: '', rate: '', account_id: '', account_category: 'control' })
     setModalOpen(true)
   }
 
   const openEdit = (tax) => {
     setEditing(tax)
-    setForm({ name: tax.name, code: tax.code, rate: tax.rate.toString(), account_id: tax.account_id || '' })
+    const isExpense = (expenseAccounts || []).some((a) => a.id === tax.account_id)
+    setForm({
+      name: tax.name, code: tax.code, rate: tax.rate.toString(),
+      account_id: tax.account_id || '',
+      account_category: isExpense ? 'expense' : 'control',
+    })
     setModalOpen(true)
   }
 
@@ -248,10 +278,21 @@ function TaxSettings() {
           <FormField label="Rate (%)" required>
             <Input type="number" step="0.1" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} required />
           </FormField>
-          <FormField label="Control Account">
+          <FormField label="Account Type">
+            <Select value={form.account_category} onChange={(e) => setForm({ ...form, account_category: e.target.value, account_id: '' })}>
+              <option value="control">Control (Liability / Reclaimable)</option>
+              <option value="expense">Expense (Non-reclaimable)</option>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              {form.account_category === 'expense'
+                ? 'Use for taxes paid that cannot be recovered (e.g. PST on purchases without tax exemption).'
+                : 'Use for taxes collected or paid that are reported to / recoverable from the government.'}
+            </p>
+          </FormField>
+          <FormField label="Account">
             <Select value={form.account_id} onChange={(e) => setForm({ ...form, account_id: e.target.value })}>
-              <option value="">None</option>
-              {accounts?.map((a) => (
+              <option value="">Select account...</option>
+              {(form.account_category === 'expense' ? expenseAccounts : controlAccounts)?.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
             </Select>

@@ -13,7 +13,7 @@ import Button from '../../components/shared/Button'
 import FormField, { Input, Select } from '../../components/shared/FormField'
 import LoadingSpinner from '../../components/shared/LoadingSpinner'
 
-const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '', product_id: '' }
+const emptyLine = { narration: '', account_id: '', quantity: 1, amount: '', tax_id: '', tax_id_2: '', product_id: '' }
 
 export default function InvoiceForm() {
   const { id } = useParams()
@@ -55,6 +55,7 @@ export default function InvoiceForm() {
               quantity: li.quantity || 1,
               amount: li.amount || '',
               tax_id: li.tax_id || '',
+              tax_id_2: li.tax_id_2 || '',
               product_id: matched ? matched.id.toString() : '',
             }
           }),
@@ -139,6 +140,9 @@ export default function InvoiceForm() {
       if (li.tax_id && taxRates[li.tax_id]) {
         taxTotal += lineAmount * taxRates[li.tax_id] / 100
       }
+      if (li.tax_id_2 && taxRates[li.tax_id_2]) {
+        taxTotal += lineAmount * taxRates[li.tax_id_2] / 100
+      }
     })
 
     return { subtotal, taxTotal, total: subtotal + taxTotal }
@@ -160,6 +164,7 @@ export default function InvoiceForm() {
           quantity: parseFloat(li.quantity) || 1,
           amount: parseFloat(li.amount) || 0,
           tax_id: li.tax_id ? parseInt(li.tax_id) : undefined,
+          tax_id_2: li.tax_id_2 ? parseInt(li.tax_id_2) : undefined,
         })),
       }
 
@@ -303,12 +308,24 @@ export default function InvoiceForm() {
               </div>
               <div className="col-span-2">
                 {i === 0 && <label className="block text-xs text-gray-500 mb-1">Tax</label>}
-                <Select value={li.tax_id} onChange={(e) => updateLine(i, 'tax_id', e.target.value)}>
-                  <option value="">No tax</option>
-                  {taxes?.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
-                  ))}
-                </Select>
+                <div className="flex gap-1">
+                  <div className="flex-1 min-w-0">
+                    <Select value={li.tax_id} onChange={(e) => updateLine(i, 'tax_id', e.target.value)}>
+                      <option value="">Tax 1</option>
+                      {taxes?.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Select value={li.tax_id_2} onChange={(e) => updateLine(i, 'tax_id_2', e.target.value)}>
+                      <option value="">Tax 2</option>
+                      {taxes?.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="col-span-1">
                 <button
