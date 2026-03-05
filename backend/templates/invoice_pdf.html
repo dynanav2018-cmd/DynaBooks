@@ -113,7 +113,7 @@
       {% if invoice.tax and invoice.tax.taxes %}
         {% for code, info in invoice.tax.taxes.items() %}
         <tr>
-          <td class="label">{{ info.name }}</td>
+          <td class="label">{{ info.name }} ({{ info.rate }}%)</td>
           <td class="value">${{ '%.2f' | format(info.amount|float) }}</td>
         </tr>
         {% endfor %}

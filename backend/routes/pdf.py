@@ -42,7 +42,7 @@ def invoice_pdf(invoice_id):
     if not invoice:
         return jsonify(error="Invoice not found"), 404
 
-    invoice_data = serialize_transaction(invoice)
+    invoice_data = serialize_transaction(invoice, session=g.session)
     company_data = serialize_entity(g.session.entity)
     company_info = _get_company_info_data()
 
@@ -74,7 +74,7 @@ def bill_pdf(bill_id):
     if not bill:
         return jsonify(error="Bill not found"), 404
 
-    bill_data = serialize_transaction(bill)
+    bill_data = serialize_transaction(bill, session=g.session)
     company_data = serialize_entity(g.session.entity)
     company_info = _get_company_info_data()
 
