@@ -82,6 +82,19 @@ export default function BillForm() {
   const handleContactChange = (contactId) => {
     setForm(prev => ({ ...prev, contact_id: contactId, billing_address_id: '', shipping_address_id: '' }))
     if (contactId) {
+      const contact = contacts?.find(c => c.id === parseInt(contactId))
+      if (contact) {
+        const defTax1 = contact.default_tax_id?.toString() || ''
+        const defTax2 = contact.default_tax_id_2?.toString() || ''
+        setForm(prev => ({
+          ...prev,
+          line_items: prev.line_items.map(li => ({
+            ...li,
+            tax_id: li.tax_id || defTax1,
+            tax_id_2: li.tax_id_2 || defTax2,
+          })),
+        }))
+      }
       fetchContactAddresses(contactId).then((addrs) => {
         setContactAddresses(addrs)
         if (addrs.length > 0) {
@@ -124,7 +137,13 @@ export default function BillForm() {
   }
 
   const addLine = () => {
-    setForm((prev) => ({ ...prev, line_items: [...prev.line_items, { ...emptyLine }] }))
+    const contact = form.contact_id ? contacts?.find(c => c.id === parseInt(form.contact_id)) : null
+    const newLine = {
+      ...emptyLine,
+      tax_id: contact?.default_tax_id?.toString() || '',
+      tax_id_2: contact?.default_tax_id_2?.toString() || '',
+    }
+    setForm((prev) => ({ ...prev, line_items: [...prev.line_items, newLine] }))
   }
 
   const removeLine = (index) => {

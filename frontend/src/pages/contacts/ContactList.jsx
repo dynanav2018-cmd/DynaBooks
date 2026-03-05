@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useApi } from '../../hooks/useApi'
 import { useToast } from '../../hooks/useToast'
 import { fetchContacts, createContact, updateContact, deleteContact, importContacts } from '../../api/contacts'
+import { fetchTaxes } from '../../api/taxes'
 import DataTable from '../../components/shared/DataTable'
 import PageHeader from '../../components/shared/PageHeader'
 import Button from '../../components/shared/Button'
@@ -27,8 +28,9 @@ const emptyForm = {
   name: '', contact_type: 'client', company: '', website: '',
   email: '', phone_1: '', phone_1_label: 'Office',
   phone_2: '', phone_2_label: '',
-  tax_number: '', payment_terms: '30 Days', notes: '',
-  addresses: [],
+  tax_number: '', payment_terms: '30 Days',
+  default_tax_id: '', default_tax_id_2: '',
+  notes: '', addresses: [],
 }
 
 const emptyAddress = {
@@ -41,6 +43,7 @@ export default function ContactList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const typeFilter = searchParams.get('type') || ''
   const { data: contacts, loading, refetch } = useApi(() => fetchContacts(typeFilter), [typeFilter])
+  const { data: taxes } = useApi(fetchTaxes, [])
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -108,6 +111,8 @@ export default function ContactList() {
       phone_2_label: contact.phone_2_label || '',
       tax_number: contact.tax_number || '',
       payment_terms: contact.payment_terms || '30 Days',
+      default_tax_id: contact.default_tax_id?.toString() || '',
+      default_tax_id_2: contact.default_tax_id_2?.toString() || '',
       notes: contact.notes || '',
       addresses: addrs,
     })
@@ -116,12 +121,17 @@ export default function ContactList() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const payload = {
+      ...form,
+      default_tax_id: form.default_tax_id ? parseInt(form.default_tax_id) : null,
+      default_tax_id_2: form.default_tax_id_2 ? parseInt(form.default_tax_id_2) : null,
+    }
     try {
       if (editing) {
-        await updateContact(editing.id, form)
+        await updateContact(editing.id, payload)
         toast.success('Contact updated')
       } else {
-        await createContact(form)
+        await createContact(payload)
         toast.success('Contact created')
       }
       setModalOpen(false)
@@ -280,13 +290,32 @@ export default function ContactList() {
             </div>
           </div>
 
-          {/* Payment Terms */}
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <FormField label="Payment Terms">
-              <Select value={form.payment_terms} onChange={setField('payment_terms')}>
-                {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
+          {/* Payment Terms & Default Taxes */}
+          <div className="mt-4 border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Defaults</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <FormField label="Payment Terms">
+                <Select value={form.payment_terms} onChange={setField('payment_terms')}>
+                  {PAYMENT_TERMS_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
+              <FormField label="Default Tax 1">
+                <Select value={form.default_tax_id} onChange={setField('default_tax_id')}>
+                  <option value="">None</option>
+                  {taxes?.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Default Tax 2">
+                <Select value={form.default_tax_id_2} onChange={setField('default_tax_id_2')}>
+                  <option value="">None</option>
+                  {taxes?.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.rate}%)</option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
           </div>
 
           {/* Addresses */}

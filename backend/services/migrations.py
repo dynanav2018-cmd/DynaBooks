@@ -355,6 +355,17 @@ def run_migrations(engine):
                     " AND payment_terms_days = 15"
                 ))
 
+        # Contact table: add default tax columns
+        if "contacts" in tables:
+            for col, col_def in [
+                ("default_tax_id", "INTEGER"),
+                ("default_tax_id_2", "INTEGER"),
+            ]:
+                if not _column_exists(insp, "contacts", col):
+                    conn.execute(text(
+                        f"ALTER TABLE contacts ADD COLUMN {col} {col_def}"
+                    ))
+
         # Contact addresses table: create if missing
         if not _table_exists(insp, "contact_addresses"):
             conn.execute(text("""

@@ -70,6 +70,8 @@ def create_contact():
         phone_2_label=data.get("phone_2_label"),
         tax_number=data.get("tax_number"),
         payment_terms=data.get("payment_terms", "30 Days"),
+        default_tax_id=data.get("default_tax_id"),
+        default_tax_id_2=data.get("default_tax_id_2"),
         notes=data.get("notes"),
     )
     g.session.add(contact)
@@ -113,7 +115,8 @@ def update_contact(contact_id):
     updatable = [
         "name", "contact_type", "company", "website", "email",
         "phone_1", "phone_1_label", "phone_2", "phone_2_label",
-        "tax_number", "payment_terms", "notes",
+        "tax_number", "payment_terms", "default_tax_id", "default_tax_id_2",
+        "notes",
     ]
     for field in updatable:
         if field in data:
