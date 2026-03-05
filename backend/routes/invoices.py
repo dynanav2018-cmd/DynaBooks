@@ -48,8 +48,11 @@ def _create_line_items(session, transaction, line_items_data, entity_id):
             if tax2:
                 line_amount = Decimal(str(li_data["amount"])) * Decimal(str(li_data.get("quantity", 1)))
                 tax2_amount = (line_amount * tax2.rate / Decimal("100")).quantize(Decimal("0.01"))
-                orig_types = list(transaction.line_item_types)
-                transaction.line_item_types = orig_types + [Account.AccountType.CONTROL]
+
+                # Add the tax2 account's type to allowed line_item_types
+                tax2_account = session.get(Account, tax2.account_id)
+                if tax2_account and tax2_account.account_type not in transaction.line_item_types:
+                    transaction.line_item_types = list(transaction.line_item_types) + [tax2_account.account_type]
 
                 hidden = LineItem(
                     narration=f"[TAX2:{tax2.id}:L{i}]",
@@ -63,7 +66,6 @@ def _create_line_items(session, transaction, line_items_data, entity_id):
                 session.flush()
                 transaction.line_items.add(hidden)
                 session.flush()
-                transaction.line_item_types = orig_types
 
 
 def _check_and_unpost(session, transaction, transaction_id):
