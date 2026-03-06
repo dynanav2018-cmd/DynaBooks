@@ -22,6 +22,56 @@ from backend.services.inventory import (
 bp = Blueprint("bills", __name__, url_prefix="/api")
 
 
+def _post_bill_with_inventory(session, bill, inv_items):
+    """Post a bill and handle inventory effects atomically.
+
+    The library's post() calls session.commit() internally, so if the
+    subsequent stock operations fail we must manually un-post.
+    """
+    bill.post(session)
+    # At this point the bill post is committed to the DB.
+
+    if not inv_items:
+        return
+
+    try:
+        for li, product in inv_items:
+            unit_cost = Decimal(str(li.amount))
+            record_stock_purchase(
+                session,
+                product,
+                Decimal(str(li.quantity)),
+                unit_cost,
+                transaction_id=bill.id,
+                reference=bill.transaction_no or "",
+            )
+        session.commit()
+    except Exception:
+        session.rollback()
+        _force_unpost_bill(session, bill.id)
+        session.commit()
+        raise
+
+
+def _force_unpost_bill(session, transaction_id):
+    """Remove ledger entries for a transaction via raw SQL."""
+    conn = session.connection()
+    ledger_ids = [
+        r[0]
+        for r in conn.execute(
+            text("SELECT id FROM ledger WHERE transaction_id = :tid"),
+            {"tid": transaction_id},
+        )
+    ]
+    if ledger_ids:
+        conn.execute(
+            text("DELETE FROM ledger WHERE transaction_id = :tid"),
+            {"tid": transaction_id},
+        )
+        for lid in ledger_ids:
+            conn.execute(text("DELETE FROM recyclable WHERE id = :id"), {"id": lid})
+
+
 def _create_line_items(session, transaction, line_items_data, entity_id):
     """Create line items for a transaction, including hidden tax2 lines."""
     for i, li_data in enumerate(line_items_data):
@@ -210,25 +260,12 @@ def create_bill():
             g.session.add(ta)
 
         if data.get("post", False):
-            bill.post(g.session)
-
-            # Record stock purchases for inventory-tracked products
             inv_items = get_inventory_products_from_line_items(
                 g.session, list(bill.line_items)
             )
-            if inv_items:
-                for li, product in inv_items:
-                    unit_cost = Decimal(str(li.amount))
-                    record_stock_purchase(
-                        g.session,
-                        product,
-                        Decimal(str(li.quantity)),
-                        unit_cost,
-                        transaction_id=bill.id,
-                        reference=bill.transaction_no or "",
-                    )
-
-        g.session.commit()
+            _post_bill_with_inventory(g.session, bill, inv_items)
+        else:
+            g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
@@ -336,24 +373,12 @@ def update_bill(bill_id):
 
         # Auto-post if requested
         if data.get("post", False):
-            bill.post(g.session)
-
             inv_items = get_inventory_products_from_line_items(
                 g.session, list(bill.line_items)
             )
-            if inv_items:
-                for li, product in inv_items:
-                    unit_cost = Decimal(str(li.amount))
-                    record_stock_purchase(
-                        g.session,
-                        product,
-                        Decimal(str(li.quantity)),
-                        unit_cost,
-                        transaction_id=bill.id,
-                        reference=bill.transaction_no or "",
-                    )
-
-        g.session.commit()
+            _post_bill_with_inventory(g.session, bill, inv_items)
+        else:
+            g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
@@ -366,6 +391,15 @@ def delete_bill(bill_id):
     bill = g.session.get(SupplierBill, bill_id)
     if not bill:
         return jsonify(error="Bill not found"), 404
+
+    # Set runtime attrs the library's before_flush validator expects
+    if not hasattr(bill, 'main_account_types'):
+        bill.main_account_types = [Account.AccountType.PAYABLE]
+        bill.credited = True
+        bill.line_item_types = Account.purchasables
+        bill.account_type_map = {
+            "SupplierBill": Account.AccountType.PAYABLE,
+        }
 
     err = _check_and_unpost(g.session, bill, bill_id)
     if err:
@@ -391,25 +425,10 @@ def post_bill(bill_id):
         return jsonify(error="Bill is already posted"), 409
 
     try:
-        bill.post(g.session)
-
-        # Record stock purchases for inventory-tracked products
         inv_items = get_inventory_products_from_line_items(
             g.session, list(bill.line_items)
         )
-        if inv_items:
-            for li, product in inv_items:
-                unit_cost = Decimal(str(li.amount)) / Decimal(str(li.quantity)) if li.quantity else Decimal("0")
-                record_stock_purchase(
-                    g.session,
-                    product,
-                    Decimal(str(li.quantity)),
-                    unit_cost,
-                    transaction_id=bill.id,
-                    reference=bill.transaction_no or "",
-                )
-
-        g.session.commit()
+        _post_bill_with_inventory(g.session, bill, inv_items)
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400

@@ -10,9 +10,13 @@
 - **Expense accounts**: All expense accounts display on the P&L (including $0.00 ones) so users see their full chart of expenses
 - **Income/COGS accounts**: Zero-balance accounts are hidden to keep the report clean
 
-### COGS Journal Fix (Intermediate Only)
-- Fixed "UNIQUE constraint failed: cogs_journal_map.invoice_transaction_id" error when editing and re-posting invoices with inventory-tracked products
-- `create_cogs_journal_entry` now cleans up stale mappings before creating new ones
+### COGS Journal & Post Atomicity Fix (Intermediate Only)
+- Fixed "UNIQUE constraint failed: transaction.transaction_no" error when posting invoices with inventory items
+- Root cause: orphaned COGS journal entries inflated the journal counter, causing duplicate transaction numbers
+- `create_cogs_journal_entry` now auto-cleans orphaned COGS journals before creating new ones
+- Fixed atomic post+inventory: if stock/COGS operations fail after `post()` commits, the invoice is automatically un-posted so it doesn't get stuck in a "posted but broken" state
+- Same atomicity fix applied to Supplier Bills
+- Previous fix for stale `cogs_journal_map` mappings retained and improved (now also deletes the associated journal)
 
 ### CSV Column Mapping Import Tool
 - **Two-step import flow**: Upload a CSV file, then map arbitrary CSV columns to DynaBooks contact fields via dropdowns

@@ -25,6 +25,58 @@ from backend.services.inventory import (
 bp = Blueprint("invoices", __name__, url_prefix="/api")
 
 
+def _post_invoice_with_inventory(session, invoice, inv_items):
+    """Post an invoice and handle inventory effects atomically.
+
+    The library's post() calls session.commit() internally, so if the
+    subsequent stock/COGS operations fail we must manually un-post.
+    """
+    invoice.post(session)
+    # At this point the invoice post is committed to the DB.
+
+    if not inv_items:
+        return
+
+    try:
+        for li, product in inv_items:
+            record_stock_sale(
+                session,
+                product,
+                Decimal(str(li.quantity)),
+                transaction_id=invoice.id,
+                reference=invoice.transaction_no or "",
+            )
+        create_cogs_journal_entry(session, invoice, inv_items)
+        # Commit stock movements + COGS journal
+        session.commit()
+    except Exception:
+        # Stock/COGS failed — undo the committed invoice post so the
+        # user doesn't end up with a posted invoice lacking COGS entries.
+        session.rollback()
+        _force_unpost(session, invoice.id)
+        session.commit()
+        raise
+
+
+def _force_unpost(session, transaction_id):
+    """Remove ledger entries for a transaction via raw SQL."""
+    conn = session.connection()
+    ledger_ids = [
+        r[0]
+        for r in conn.execute(
+            text("SELECT id FROM ledger WHERE transaction_id = :tid"),
+            {"tid": transaction_id},
+        )
+    ]
+    if ledger_ids:
+        conn.execute(
+            text("DELETE FROM ledger WHERE transaction_id = :tid"),
+            {"tid": transaction_id},
+        )
+        for lid in ledger_ids:
+            conn.execute(text("DELETE FROM recyclable WHERE id = :id"), {"id": lid})
+
+
 def _create_line_items(session, transaction, line_items_data, entity_id):
     """Create line items for a transaction, including hidden tax2 lines."""
     for i, li_data in enumerate(line_items_data):
@@ -223,20 +275,9 @@ def create_invoice():
                     g.session.rollback()
                     return jsonify(error="; ".join(errors)), 400
 
-            invoice.post(g.session)
-
-            if inv_items:
-                for li, product in inv_items:
-                    record_stock_sale(
-                        g.session,
-                        product,
-                        Decimal(str(li.quantity)),
-                        transaction_id=invoice.id,
-                        reference=invoice.transaction_no or "",
-                    )
-                create_cogs_journal_entry(g.session, invoice, inv_items)
-
-        g.session.commit()
+            _post_invoice_with_inventory(g.session, invoice, inv_items)
+        else:
+            g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
@@ -354,20 +395,9 @@ def update_invoice(invoice_id):
                     g.session.rollback()
                     return jsonify(error="; ".join(errors)), 400
 
-            invoice.post(g.session)
-
-            if inv_items:
-                for li, product in inv_items:
-                    record_stock_sale(
-                        g.session,
-                        product,
-                        Decimal(str(li.quantity)),
-                        transaction_id=invoice.id,
-                        reference=invoice.transaction_no or "",
-                    )
-                create_cogs_journal_entry(g.session, invoice, inv_items)
-
-        g.session.commit()
+            _post_invoice_with_inventory(g.session, invoice, inv_items)
+        else:
+            g.session.commit()
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400
@@ -380,6 +410,15 @@ def delete_invoice(invoice_id):
     invoice = g.session.get(ClientInvoice, invoice_id)
     if not invoice:
         return jsonify(error="Invoice not found"), 404
+
+    # Set runtime attrs the library's before_flush validator expects
+    if not hasattr(invoice, 'main_account_types'):
+        invoice.main_account_types = [Account.AccountType.RECEIVABLE]
+        invoice.credited = False
+        invoice.line_item_types = [Account.AccountType.OPERATING_REVENUE]
+        invoice.account_type_map = {
+            "ClientInvoice": Account.AccountType.RECEIVABLE,
+        }
 
     err = _check_and_unpost(g.session, invoice, invoice_id)
     if err:
@@ -414,21 +453,7 @@ def post_invoice(invoice_id):
             if errors:
                 return jsonify(error="; ".join(errors)), 400
 
-        invoice.post(g.session)
-
-        # Record stock sales and auto-create COGS journal
-        if inv_items:
-            for li, product in inv_items:
-                record_stock_sale(
-                    g.session,
-                    product,
-                    Decimal(str(li.quantity)),
-                    transaction_id=invoice.id,
-                    reference=invoice.transaction_no or "",
-                )
-            create_cogs_journal_entry(g.session, invoice, inv_items)
-
-        g.session.commit()
+        _post_invoice_with_inventory(g.session, invoice, inv_items)
     except Exception as e:
         g.session.rollback()
         return jsonify(error=str(e)), 400

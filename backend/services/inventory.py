@@ -220,6 +220,84 @@ def get_inventory_products_from_line_items(
 # Auto COGS journal entry
 # ---------------------------------------------------------------------------
 
+def _next_journal_no(session, entity_id):
+    """Generate the next unique journal transaction_no.
+
+    The library's auto-numbering uses COUNT of existing journals which
+    can collide when journals are deleted and gaps form.  Instead, find
+    the highest existing number and increment it.
+    """
+    from sqlalchemy import text
+
+    row = session.connection().execute(
+        text(
+            "SELECT MAX(CAST(SUBSTR(transaction_no, -4) AS INTEGER)) "
+            'FROM "transaction" '
+            "WHERE transaction_type = 'JOURNAL_ENTRY' "
+            "AND entity_id = :eid"
+        ),
+        {"eid": entity_id},
+    ).fetchone()
+    max_num = (row[0] or 0) if row else 0
+
+    # Extract period prefix from an existing journal, or use default
+    prefix_row = session.connection().execute(
+        text(
+            "SELECT SUBSTR(transaction_no, 1, LENGTH(transaction_no) - 4) "
+            'FROM "transaction" '
+            "WHERE transaction_type = 'JOURNAL_ENTRY' "
+            "AND entity_id = :eid LIMIT 1"
+        ),
+        {"eid": entity_id},
+    ).fetchone()
+    if prefix_row and prefix_row[0]:
+        prefix = prefix_row[0]
+    else:
+        # Default: read from config
+        from python_accounting.config import config
+        prefix = config.transactions["types"]["JOURNAL_ENTRY"]["transaction_no_prefix"]
+        prefix = f"{prefix}01/"
+
+    return f"{prefix}{max_num + 1:04}"
+
+
+def _cleanup_orphaned_cogs_journals(session):
+    """Delete COGS journal entries that have no mapping in cogs_journal_map.
+
+    These orphans can accumulate when invoice edits fail partway through,
+    and they inflate the journal count causing transaction_no collisions.
+    """
+    from sqlalchemy import text
+
+    orphan_ids = [
+        row[0]
+        for row in session.connection().execute(
+            text(
+                'SELECT t.id FROM "transaction" t '
+                "LEFT JOIN cogs_journal_map m ON m.journal_transaction_id = t.id "
+                "WHERE t.narration LIKE 'Auto COGS%' AND m.id IS NULL"
+            )
+        )
+    ]
+    if not orphan_ids:
+        return
+
+    conn = session.connection()
+    for tid in orphan_ids:
+        conn.execute(text("DELETE FROM ledger WHERE transaction_id = :tid"), {"tid": tid})
+        conn.execute(text("DELETE FROM line_item WHERE transaction_id = :tid"), {"tid": tid})
+        conn.execute(text('DELETE FROM "transaction" WHERE id = :tid'), {"tid": tid})
+    # Clean recyclable entries for deleted ledger rows
+    conn.execute(
+        text(
+            "DELETE FROM recyclable WHERE id NOT IN "
+            "(SELECT id FROM ledger UNION SELECT id FROM line_item "
+            'UNION SELECT id FROM "transaction")'
+        )
+    )
+    session.flush()
+
+
 def create_cogs_journal_entry(session, invoice_transaction, inventory_line_items):
     """Auto-create a compound JournalEntry: DR COGS / CR Inventory.
 
@@ -237,8 +315,13 @@ def create_cogs_journal_entry(session, invoice_transaction, inventory_line_items
         .first()
     )
     if existing:
+        # Also delete the associated journal transaction
+        _delete_cogs_journal(session, existing.journal_transaction_id)
         session.delete(existing)
         session.flush()
+
+    # Clean up orphaned COGS journals to prevent transaction_no collisions
+    _cleanup_orphaned_cogs_journals(session)
 
     entity = session.entity
 
@@ -283,6 +366,11 @@ def create_cogs_journal_entry(session, invoice_transaction, inventory_line_items
     )
     journal.compound = True
     journal.main_account_amount = main_amount
+
+    # Pre-assign a unique transaction_no to avoid collisions.
+    # The library's auto-numbering uses COUNT which can collide with
+    # existing numbers when journals have been deleted and recreated.
+    journal.transaction_no = _next_journal_no(session, entity.id)
 
     session.add(journal)
     session.flush()
@@ -362,21 +450,10 @@ def reverse_stock_movements(session, transaction_id: int):
     session.flush()
 
 
-def reverse_cogs_journal(session, invoice_transaction_id: int):
-    """Delete the auto-created COGS journal for an invoice."""
+def _delete_cogs_journal(session, journal_id: int):
+    """Delete a COGS journal transaction and its ledger/line_item rows."""
     from sqlalchemy import text
 
-    mapping = (
-        session.query(CogsJournalMap)
-        .filter(CogsJournalMap.invoice_transaction_id == invoice_transaction_id)
-        .first()
-    )
-    if not mapping:
-        return
-
-    journal_id = mapping.journal_transaction_id
-
-    # Delete ledger entries, line items, and the journal itself via raw SQL
     conn = session.connection()
     conn.execute(
         text("DELETE FROM ledger WHERE transaction_id = :tid"),
@@ -389,6 +466,24 @@ def reverse_cogs_journal(session, invoice_transaction_id: int):
     journal = session.get(JournalEntry, journal_id)
     if journal:
         session.delete(journal)
+    else:
+        # Fallback: delete via raw SQL if ORM can't find it
+        conn.execute(
+            text('DELETE FROM "transaction" WHERE id = :tid'),
+            {"tid": journal_id},
+        )
 
+
+def reverse_cogs_journal(session, invoice_transaction_id: int):
+    """Delete the auto-created COGS journal for an invoice."""
+    mapping = (
+        session.query(CogsJournalMap)
+        .filter(CogsJournalMap.invoice_transaction_id == invoice_transaction_id)
+        .first()
+    )
+    if not mapping:
+        return
+
+    _delete_cogs_journal(session, mapping.journal_transaction_id)
     session.delete(mapping)
     session.flush()
