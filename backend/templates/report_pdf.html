@@ -167,16 +167,13 @@
     {# ── Expenses ── #}
     {% set expense_types = ['Operating Expense', 'Overhead Expense', 'Other Expense', 'Reconciliation'] %}
     {% set ns = namespace(expense_grand=0) %}
-    {% for etype in expense_types %}
-      {% set et = type_total(etype)|float %}
-      {% set ns.expense_grand = ns.expense_grand + et %}
-    {% endfor %}
     {{ row('Expenses', 0, bold=true) }}
     {% for etype in expense_types %}
-      {% set et = type_total(etype)|float %}
-      {% if et != 0 %}
+      {% if account_listing.get(etype) %}
         {{ row(etype, 1, bold=true) }}
-        {{ acct_lines(etype, 2, 'amt1') }}
+        {{ acct_lines(etype, 2, 'amt1', show_zero=true) }}
+        {% set et = type_total(etype)|float %}
+        {% set ns.expense_grand = ns.expense_grand + et %}
         {{ underline_row(1) }}
         {{ row('Total ' + etype, 1, amt2=et, bold=true) }}
       {% endif %}
