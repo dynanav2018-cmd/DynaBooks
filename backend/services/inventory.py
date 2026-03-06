@@ -230,6 +230,16 @@ def create_cogs_journal_entry(session, invoice_transaction, inventory_line_items
     if not inventory_line_items:
         return None
 
+    # Clean up any stale mapping from a previous post attempt
+    existing = (
+        session.query(CogsJournalMap)
+        .filter(CogsJournalMap.invoice_transaction_id == invoice_transaction.id)
+        .first()
+    )
+    if existing:
+        session.delete(existing)
+        session.flush()
+
     entity = session.entity
 
     # Build the COGS line item data
