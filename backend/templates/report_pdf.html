@@ -105,13 +105,15 @@
   <tr class="spacer"><td colspan="4"></td></tr>
   {% endmacro %}
 
-  {# Render ALL accounts for a given type from account_listing, showing $0.00 for zero-balance #}
-  {% macro acct_lines(type_key, indent=1, col='amt1') %}
+  {# Render accounts for a given type from account_listing; skip zero-balance unless show_zero #}
+  {% macro acct_lines(type_key, indent=1, col='amt1', show_zero=false) %}
     {% for acct in account_listing.get(type_key, []) %}
-      {% if col == 'amt1' %}
-        {{ row(acct.name, indent, amt1=acct.balance) }}
-      {% else %}
-        {{ row(acct.name, indent, amt2=acct.balance) }}
+      {% if show_zero or acct.balance != 0 %}
+        {% if col == 'amt1' %}
+          {{ row(acct.name, indent, amt1=acct.balance) }}
+        {% else %}
+          {{ row(acct.name, indent, amt2=acct.balance) }}
+        {% endif %}
       {% endif %}
     {% endfor %}
   {% endmacro %}
@@ -158,24 +160,23 @@
     {{ spacer() }}
 
     {# ── Gross Profit ── #}
-    {% if result_amounts.get('Gross Profit') is not none %}
-      {{ row('Gross Profit', 0, amt3=result_amounts['Gross Profit'], bold=true) }}
-    {% else %}
-      {{ row('Gross Profit', 0, amt3=income_total - cogs_total, bold=true) }}
-    {% endif %}
+    {{ row('Gross Profit', 0, amt3=income_total - cogs_total, bold=true) }}
 
     {{ spacer() }}
 
     {# ── Expenses ── #}
-    {{ row('Expenses', 0, bold=true) }}
     {% set expense_types = ['Operating Expense', 'Overhead Expense', 'Other Expense', 'Reconciliation'] %}
     {% set ns = namespace(expense_grand=0) %}
     {% for etype in expense_types %}
-      {% if account_listing.get(etype) %}
+      {% set et = type_total(etype)|float %}
+      {% set ns.expense_grand = ns.expense_grand + et %}
+    {% endfor %}
+    {{ row('Expenses', 0, bold=true) }}
+    {% for etype in expense_types %}
+      {% set et = type_total(etype)|float %}
+      {% if et != 0 %}
         {{ row(etype, 1, bold=true) }}
         {{ acct_lines(etype, 2, 'amt1') }}
-        {% set et = type_total(etype)|float %}
-        {% set ns.expense_grand = ns.expense_grand + et %}
         {{ underline_row(1) }}
         {{ row('Total ' + etype, 1, amt2=et, bold=true) }}
       {% endif %}
@@ -185,40 +186,33 @@
     {{ spacer() }}
 
     {# ── Operating Profit ── #}
-    {% if result_amounts.get('Operating Profit') is not none %}
-      {{ underline_row(3) }}
-      {{ row('Operating Profit', 0, amt3=result_amounts['Operating Profit'], bold=true) }}
-    {% else %}
-      {{ underline_row(3) }}
-      {{ row('Operating Profit', 0, amt3=income_total - cogs_total - ns.expense_grand, bold=true) }}
-    {% endif %}
+    {{ underline_row(3) }}
+    {{ row('Operating Profit', 0, amt3=income_total - cogs_total - ns.expense_grand, bold=true) }}
 
     {{ spacer() }}
 
     {# ── Other Income ── #}
-    {{ row('Other Income', 0, bold=true) }}
-    {{ acct_lines('Non Operating Revenue', 1, 'amt1') }}
-
-    {{ spacer() }}
-
-    {# ── Other Expenses ── #}
-    {{ row('Other Expenses', 0, bold=true) }}
-
-    {{ spacer() }}
-
-    {# ── Net Profit / (Loss) ── #}
-    {% if result_amounts.get('Net Profit') is not none %}
-      {{ underline_row(3) }}
-      {{ row('Net Profit / (Loss)', 0, amt3=result_amounts['Net Profit'], bold=true) }}
-      {{ underline_row(3) }}
+    {% set other_income_total = type_total('Non Operating Revenue')|float %}
+    {% if account_listing.get('Non Operating Revenue') %}
+      {{ row('Other Income', 0, bold=true) }}
+      {{ acct_lines('Non Operating Revenue', 1, 'amt1') }}
+      {{ underline_row(1) }}
+      {{ row('Total Other Income', 0, amt3=other_income_total, bold=true) }}
+      {{ spacer() }}
     {% endif %}
 
-    {# ── Fallback for any result amounts not yet shown ── #}
-    {% for key, val in result_amounts.items() %}
-      {% if key not in ('Gross Profit', 'Total Expenses', 'Operating Profit', 'Net Profit') %}
-        {{ row(key, 0, amt3=val, bold=true) }}
-      {% endif %}
-    {% endfor %}
+    {# ── Net Profit / (Loss) ── #}
+    {% set net_profit = result_amounts.get('NET_PROFIT', result_amounts.get('Net Profit')) %}
+    {% if net_profit is not none %}
+      {{ underline_row(3) }}
+      {{ row('Net Profit / (Loss)', 0, amt3=net_profit, bold=true) }}
+      {{ underline_row(3) }}
+    {% else %}
+      {% set calc_net = income_total - cogs_total - ns.expense_grand + other_income_total %}
+      {{ underline_row(3) }}
+      {{ row('Net Profit / (Loss)', 0, amt3=calc_net, bold=true) }}
+      {{ underline_row(3) }}
+    {% endif %}
   </table>
 
   <!-- ═══ BALANCE SHEET ═══ -->

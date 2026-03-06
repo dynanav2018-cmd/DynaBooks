@@ -128,16 +128,23 @@ def _build_account_listing(session, report):
         .all()
     )
 
-    # Build a lookup: account_type_value -> {account_id: balance}
-    balance_lookup: dict[str, dict[int, float]] = {}
-    if hasattr(report, "balances") and report.balances:
-        for acct_type, type_balances in report.balances.items():
-            type_str = acct_type.value if hasattr(acct_type, "value") else str(acct_type)
-            balance_lookup[type_str] = {}
-            if isinstance(type_balances, dict):
-                for acct_obj, amt in type_balances.items():
-                    if hasattr(acct_obj, "id"):
-                        balance_lookup[type_str][acct_obj.id] = float(amt)
+    # Build a lookup: account_id -> balance
+    # Extract per-account balances from report.accounts, which nests
+    # actual Account objects with a ``closing`` attribute.
+    balance_by_id: dict[int, float] = {}
+    if hasattr(report, "accounts") and report.accounts:
+        for _section_key, section_val in report.accounts.items():
+            if not isinstance(section_val, dict):
+                continue
+            for _type_name, type_info in section_val.items():
+                if not isinstance(type_info, dict):
+                    continue
+                for _inner_key, detail in type_info.items():
+                    if isinstance(detail, dict) and "accounts" in detail:
+                        for acct_obj in detail["accounts"]:
+                            if hasattr(acct_obj, "id"):
+                                bal = getattr(acct_obj, "closing", 0)
+                                balance_by_id[acct_obj.id] = abs(float(bal))
 
     listing: dict[str, list[dict]] = {}
     for acct in all_accounts:
@@ -146,7 +153,7 @@ def _build_account_listing(session, report):
             continue
         if type_str not in listing:
             listing[type_str] = []
-        balance = balance_lookup.get(type_str, {}).get(acct.id, 0.0)
+        balance = balance_by_id.get(acct.id, 0.0)
         listing[type_str].append({"name": acct.name, "balance": balance})
 
     return listing
