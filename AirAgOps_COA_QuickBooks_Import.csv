@@ -1,0 +1,215 @@
+Account Number,Account Name,Type,Detail Type
+1010,Bank – operating account (CAD),Bank,Checking
+1015,Bank – operating account (USD),Bank,Checking
+1020,Bank – payroll account,Bank,Checking
+1030,Bank – savings and term deposits,Bank,Savings
+1050,Petty cash,Bank,Cash on hand
+1090,Undeposited funds,Other Current Assets,Undeposited Funds
+1100,Accounts receivable – trade,Accounts receivable (A/R),Accounts Receivable (A/R)
+1110,Allowance for doubtful accounts,Other Current Assets,Allowance for Bad Debts
+1120,Employee advances and receivables,Other Current Assets,Employee Cash Advances
+1130,Supplier rebates and programs receivable,Other Current Assets,Other Current Assets
+1140,Core charges and warranty claims receivable,Other Current Assets,Other Current Assets
+1150,Insurance claims receivable,Other Current Assets,Other Current Assets
+1160,Fuel tax credits and refunds receivable,Other Current Assets,Other Current Assets
+1170,Income taxes recoverable,Other Current Assets,Other Current Assets
+1180,Government grants receivable,Other Current Assets,Other Current Assets
+1310,Inventory – aircraft parts,Other Current Assets,Inventory
+1315,Inventory – aircraft parts at vendor or in exchange,Other Current Assets,Inventory
+1320,Inventory – general stores (vehicle and equipment parts),Other Current Assets,Inventory
+1330,Inventory – chemicals (company-owned),Other Current Assets,Inventory
+1335,Inventory – fertilizer and seed (company-owned),Other Current Assets,Inventory
+1340,Inventory – aviation fuel (Jet A / Avgas),Other Current Assets,Inventory
+1345,"Inventory – vehicle fuel, oils and lubricants",Other Current Assets,Inventory
+1390,Inventory obsolescence reserve,Other Current Assets,Inventory
+1410,Prepaid insurance,Other Current Assets,Prepaid Expenses
+1420,Prepaid chemical purchases and early-order deposits,Other Current Assets,Prepaid Expenses
+1430,Prepaid expenses – other,Other Current Assets,Prepaid Expenses
+1440,Supplier deposits,Other Current Assets,Other Current Assets
+1490,AirAg Ops integration clearing,Other Current Assets,Other Current Assets
+1510,Land,Fixed Assets,Land
+1520,"Land improvements – airstrips, loading pads, containment",Fixed Assets,Buildings
+1521,Accumulated amortization – land improvements,Fixed Assets,Accumulated Depreciation
+1530,"Buildings – hangars, offices, chemical storage",Fixed Assets,Buildings
+1531,Accumulated amortization – buildings,Fixed Assets,Accumulated Depreciation
+1540,Leasehold improvements,Fixed Assets,Leasehold Improvements
+1541,Accumulated amortization – leasehold improvements,Fixed Assets,Accumulated Depreciation
+1610,Aircraft – airframes,Fixed Assets,Machinery & Equipment
+1611,Accumulated amortization – airframes,Fixed Assets,Accumulated Depreciation
+1620,Aircraft – engines,Fixed Assets,Machinery & Equipment
+1621,Accumulated amortization – engines,Fixed Assets,Accumulated Depreciation
+1630,Aircraft – propellers,Fixed Assets,Machinery & Equipment
+1631,Accumulated amortization – propellers,Fixed Assets,Accumulated Depreciation
+1640,"Aircraft – avionics, GPS guidance and flow control",Fixed Assets,Machinery & Equipment
+1641,"Accumulated amortization – avionics, GPS guidance and flow control",Fixed Assets,Accumulated Depreciation
+1650,Aircraft – dispersal systems (spray and spreader),Fixed Assets,Machinery & Equipment
+1651,Accumulated amortization – dispersal systems (spray and spreader),Fixed Assets,Accumulated Depreciation
+1660,Rotable and repairable spares (capitalized),Fixed Assets,Machinery & Equipment
+1661,Accumulated amortization – rotable and repairable spares (capitalized),Fixed Assets,Accumulated Depreciation
+1670,Aircraft overhauls and capital work in progress,Fixed Assets,Machinery & Equipment
+1710,Vehicles – trucks and pickups,Fixed Assets,Vehicles
+1711,Accumulated amortization – trucks and pickups,Fixed Assets,Accumulated Depreciation
+1720,"Loader trucks, nurse tanks and mix trailers",Fixed Assets,Vehicles
+1721,"Accumulated amortization – loader trucks, nurse tanks and mix trailers",Fixed Assets,Accumulated Depreciation
+1730,Fuel trucks and fuel trailers,Fixed Assets,Vehicles
+1731,Accumulated amortization – fuel trucks and fuel trailers,Fixed Assets,Accumulated Depreciation
+1740,"Ground support equipment (tugs, GPUs, forklifts)",Fixed Assets,Machinery & Equipment
+1741,"Accumulated amortization – ground support equipment (tugs, GPUs, forklifts)",Fixed Assets,Accumulated Depreciation
+1750,Chemical handling and mixing systems,Fixed Assets,Machinery & Equipment
+1751,Accumulated amortization – chemical handling and mixing systems,Fixed Assets,Accumulated Depreciation
+1760,Shop tools and equipment,Fixed Assets,Machinery & Equipment
+1761,Accumulated amortization – shop tools and equipment,Fixed Assets,Accumulated Depreciation
+1770,Computer equipment and software,Fixed Assets,Machinery & Equipment
+1771,Accumulated amortization – computer equipment and software,Fixed Assets,Accumulated Depreciation
+1780,Office furniture and equipment,Fixed Assets,Machinery & Equipment
+1781,Accumulated amortization – office furniture and equipment,Fixed Assets,Accumulated Depreciation
+1790,Radio and communication equipment,Fixed Assets,Machinery & Equipment
+1791,Accumulated amortization – radio and communication equipment,Fixed Assets,Accumulated Depreciation
+1810,Right-of-use assets – leased aircraft and equipment,Fixed Assets,Machinery & Equipment
+1811,Accumulated amortization – right-of-use assets,Fixed Assets,Accumulated Depreciation
+1900,"Intangible assets – licences, certificates and software",Other Assets,Licenses
+1901,Accumulated amortization – intangible assets,Other Assets,Accumulated Amortization of Other Assets
+1950,Long-term deposits,Other Assets,Security Deposits
+1960,Due from shareholders and related parties,Other Assets,Other Long-term Assets
+2010,Accounts payable – trade,Accounts payable (A/P),Accounts Payable (A/P)
+2020,Goods received not invoiced (optional),Other Current Liabilities,Other Current Liabilities
+2030,Accrued liabilities,Other Current Liabilities,Accrued Liabilities
+2040,Credit cards payable,Credit Card,Credit Card
+2050,Customer deposits and prepayments,Other Current Liabilities,Other Current Liabilities
+2060,Deferred revenue,Other Current Liabilities,Other Current Liabilities
+2110,GST/HST collected,Other Current Liabilities,Sales Tax Payable
+2115,GST/HST input tax credits,Other Current Liabilities,Sales Tax Payable
+2120,"PST payable (BC, SK, MB)",Other Current Liabilities,Sales Tax Payable
+2125,QST payable (Quebec),Other Current Liabilities,Sales Tax Payable
+2130,Sales and use tax payable (US),Other Current Liabilities,Sales Tax Payable
+2210,Net pay clearing,Other Current Liabilities,Payroll Clearing
+2220,Income tax withheld – federal and provincial,Other Current Liabilities,Payroll Tax Payable
+2225,CPP/QPP contributions payable (incl. CPP2/QPP2),Other Current Liabilities,Payroll Tax Payable
+2230,EI and QPIP premiums payable,Other Current Liabilities,Payroll Tax Payable
+2235,Employer health tax payable,Other Current Liabilities,Payroll Tax Payable
+2240,Workers’ compensation payable,Other Current Liabilities,Payroll Tax Payable
+2245,Vacation pay accrued,Other Current Liabilities,Accrued Liabilities
+2250,Benefits and retirement plan deductions payable,Other Current Liabilities,Payroll Tax Payable
+2255,Other payroll deductions payable,Other Current Liabilities,Payroll Tax Payable
+2260,Federal income tax withheld (US),Other Current Liabilities,Payroll Tax Payable
+2265,Social Security and Medicare (FICA) payable,Other Current Liabilities,Payroll Tax Payable
+2270,Federal unemployment tax (FUTA) payable,Other Current Liabilities,Payroll Tax Payable
+2275,State unemployment tax (SUTA) payable,Other Current Liabilities,Payroll Tax Payable
+2280,State and local income tax withheld (US),Other Current Liabilities,Payroll Tax Payable
+2310,Corporate income taxes payable,Other Current Liabilities,Other Current Liabilities
+2320,Bank operating line of credit,Other Current Liabilities,Line of Credit
+2330,Current portion of long-term debt,Other Current Liabilities,Current Portion of Obligations under Finance Leases
+2340,Current portion of lease liabilities,Other Current Liabilities,Current Portion of Obligations under Finance Leases
+2350,Dividends payable,Other Current Liabilities,Other Current Liabilities
+2410,Aircraft loans,Long Term Liabilities,Notes Payable
+2420,Equipment and vehicle loans,Long Term Liabilities,Notes Payable
+2430,Mortgages – land and buildings,Long Term Liabilities,Notes Payable
+2440,Lease liabilities,Long Term Liabilities,Other Long Term Liabilities
+2450,Government loans and repayable contributions,Long Term Liabilities,Notes Payable
+2460,Due to shareholders and related parties,Long Term Liabilities,Shareholder Notes Payable
+2470,Deferred income taxes,Long Term Liabilities,Other Long Term Liabilities
+3010,Common shares,Equity,Common Stock
+3020,Preferred shares,Equity,Preferred Stock
+3030,Contributed surplus,Equity,Paid-In Capital or Surplus
+3100,Retained earnings,Equity,Retained Earnings
+3110,Dividends declared,Equity,Partner Distributions
+3200,Owner’s or partners’ capital,Equity,Owner's Equity
+3210,Owner’s or partners’ drawings,Equity,Partner Distributions
+4010,Aerial application – liquid products,Income,Service/Fee Income
+4020,"Aerial application – dry products (fertilizer, seed, bait)",Income,Service/Fee Income
+4030,"Forestry, rangeland and public health application",Income,Service/Fee Income
+4040,Firefighting and government contracts,Income,Service/Fee Income
+4050,"Ferry, positioning and mobilization charges",Income,Service/Fee Income
+4060,"Standby, minimum and call-out charges",Income,Service/Fee Income
+4070,Fuel and chemical surcharges,Income,Service/Fee Income
+4100,Chemical sales (company-owned product),Income,Sales of Product Income
+4110,Fertilizer and seed sales,Income,Sales of Product Income
+4200,"Product handling, mixing and loading fees",Income,Service/Fee Income
+4210,"Container, rinsate and disposal fees",Income,Service/Fee Income
+4300,Maintenance services – labour (third-party aircraft),Income,Service/Fee Income
+4310,Maintenance services – parts sales,Income,Sales of Product Income
+4400,Charter and other flight services,Income,Service/Fee Income
+4500,Equipment and vehicle rental income,Income,Service/Fee Income
+4900,"Sales discounts, rebates and allowances",Income,Discounts/Refunds Given
+5010,Chemical cost of sales (company-owned),Cost of Goods Sold,Supplies & Materials - COGS
+5020,Fertilizer and seed cost of sales,Cost of Goods Sold,Supplies & Materials - COGS
+5030,Supplier rebates and early-order discounts,Cost of Goods Sold,Supplies & Materials - COGS
+5100,Aviation fuel and oil,Cost of Goods Sold,Supplies & Materials - COGS
+5200,Pilot wages,Cost of Goods Sold,Cost of labor - COS
+5210,Loader and ground crew wages,Cost of Goods Sold,Cost of labor - COS
+5220,Maintenance labour – AMEs and mechanics,Cost of Goods Sold,Cost of labor - COS
+5250,Direct payroll burden – CPP/QPP and EI/QPIP,Cost of Goods Sold,Cost of labor - COS
+5255,"Direct payroll burden – FICA, FUTA and SUTA",Cost of Goods Sold,Cost of labor - COS
+5260,Direct payroll burden – employer health tax and workers’ compensation,Cost of Goods Sold,Cost of labor - COS
+5265,Direct payroll burden – benefits and retirement contributions,Cost of Goods Sold,Cost of labor - COS
+5270,Direct payroll – vacation and statutory holiday pay,Cost of Goods Sold,Cost of labor - COS
+5300,Aircraft maintenance – parts issued,Cost of Goods Sold,Other Costs of Services - COS
+5310,Aircraft maintenance – outside services,Cost of Goods Sold,Other Costs of Services - COS
+5320,Aircraft maintenance – engine and propeller overhauls (expensed),Cost of Goods Sold,Other Costs of Services - COS
+5330,"Aircraft maintenance – components, avionics and dispersal systems",Cost of Goods Sold,Other Costs of Services - COS
+5340,Aircraft maintenance – shop consumables,Cost of Goods Sold,Other Costs of Services - COS
+5400,Aircraft hull insurance,Cost of Goods Sold,Other Costs of Services - COS
+5410,Aviation and aerial application liability insurance,Cost of Goods Sold,Other Costs of Services - COS
+5500,Aircraft leases and rentals,Cost of Goods Sold,Equipment Rental - COS
+5510,"Hangar, tie-down and landing fees",Cost of Goods Sold,Other Costs of Services - COS
+5600,"GPS, guidance and flight-tracking subscriptions",Cost of Goods Sold,Other Costs of Services - COS
+5610,"Crew travel, lodging and per diem",Cost of Goods Sold,Other Costs of Services - COS
+5620,Ground support vehicle fuel,Cost of Goods Sold,Other Costs of Services - COS
+5630,Vehicle and equipment maintenance – parts issued,Cost of Goods Sold,Other Costs of Services - COS
+5640,Vehicle and equipment maintenance – outside services,Cost of Goods Sold,Other Costs of Services - COS
+5650,Equipment and vehicle rentals,Cost of Goods Sold,Equipment Rental - COS
+5700,Subcontracted aerial application,Cost of Goods Sold,Other Costs of Services - COS
+5710,"Containment, rinsate and disposal costs",Cost of Goods Sold,Other Costs of Services - COS
+5800,Amortization – aircraft,Cost of Goods Sold,Other Costs of Services - COS
+5810,Amortization – vehicles and ground equipment,Cost of Goods Sold,Other Costs of Services - COS
+5900,Inventory adjustments – parts,Cost of Goods Sold,Supplies & Materials - COGS
+5910,Inventory adjustments – chemicals and fuel,Cost of Goods Sold,Supplies & Materials - COGS
+5920,"Freight-in, customs and duty",Cost of Goods Sold,Supplies & Materials - COGS
+6010,Advertising and promotion,Expenses,Advertising/Promotional
+6020,Trade shows and association events,Expenses,Advertising/Promotional
+6100,Salaries – management,Expenses,Officers' Compensation
+6110,Salaries – office and dispatch staff,Expenses,Payroll Expenses
+6150,Payroll burden – CPP/QPP and EI/QPIP,Expenses,Payroll Expenses
+6155,"Payroll burden – FICA, FUTA and SUTA",Expenses,Payroll Expenses
+6160,Payroll burden – employer health tax and workers’ compensation,Expenses,Payroll Expenses
+6165,Benefits and retirement plan contributions,Expenses,Payroll Expenses
+6170,Vacation and statutory holiday pay – administration,Expenses,Payroll Expenses
+6200,"Insurance – general liability, property and vehicles",Expenses,Insurance
+6300,"Rent – office, hangar and storage",Expenses,Rent or Lease of Buildings
+6310,Utilities,Expenses,Utilities
+6320,"Telephone, internet and satellite communications",Expenses,Utilities
+6330,Property taxes,Expenses,Taxes Paid
+6340,Repairs and maintenance – buildings and hangars,Expenses,Repair & Maintenance
+6350,"Repairs and maintenance – airstrips, yards and containment",Expenses,Repair & Maintenance
+6400,Legal fees,Expenses,Legal & Professional Fees
+6410,Accounting and audit fees,Expenses,Legal & Professional Fees
+6420,Consulting and professional fees,Expenses,Legal & Professional Fees
+6500,Aviation certificates and regulatory fees (TC / FAA),Expenses,Taxes Paid
+6510,"Pesticide applicator licences, permits and registrations",Expenses,Taxes Paid
+6520,Memberships and associations,Expenses,Dues & Subscriptions
+6530,Training and recurrent training,Expenses,Other Miscellaneous Service Cost
+6540,"Safety equipment, PPE and environmental compliance",Expenses,Supplies & Materials
+6600,Office supplies and postage,Expenses,Office/General Administrative Expenses
+6610,Software and subscriptions,Expenses,Dues & Subscriptions
+6620,Bank service charges,Expenses,Bank Charges
+6630,Merchant and credit card fees,Expenses,Bank Charges
+6640,Bad debts,Expenses,Bad Debts
+6700,Vehicle expenses – administration,Expenses,Auto
+6800,Travel – administration,Expenses,Travel
+6810,Meals and entertainment,Expenses,Entertainment Meals
+6900,"Amortization – buildings, office and other assets",Expenses,Depreciation
+6910,Amortization – intangible assets,Expenses,Amortization
+6950,Small tools and minor equipment,Expenses,Supplies & Materials
+6990,Miscellaneous expenses,Expenses,Other Miscellaneous Service Cost
+7010,Interest income,Other Income,Interest Earned
+7020,Foreign exchange gains and losses,Other Income,Other Miscellaneous Income
+7030,Gain or loss on disposal of assets,Other Income,Gain/Loss on Sale of Fixed Assets
+7040,Government grants and subsidies,Other Income,Other Miscellaneous Income
+7050,Fuel tax credits and refunds,Other Income,Other Miscellaneous Income
+7060,Insurance proceeds and recoveries,Other Income,Other Miscellaneous Income
+7100,Interest – aircraft and equipment loans,Other Expense,Other Miscellaneous Expense
+7110,Interest – operating line and other,Other Expense,Other Miscellaneous Expense
+7120,Interest on lease liabilities,Other Expense,Other Miscellaneous Expense
+7200,"Penalties, fines and non-deductible expenses",Other Expense,Penalties & Settlements
+8010,Current income taxes,Other Expense,Other Miscellaneous Expense
+8020,Deferred income taxes,Other Expense,Other Miscellaneous Expense
